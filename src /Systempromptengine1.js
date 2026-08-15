@@ -24,8 +24,12 @@ const LEIS_GERAIS = `
 3. Campo que você não conseguiu confirmar via busca real vira "null" — nunca invente, estime ou "arredonde" um número que não achou.
 4. Nunca arredonde ou simplifique uma odd encontrada — reproduza exatamente o valor da fonte.
 5. Sempre que o esporte tiver "requisitos mínimos" listados abaixo, priorize a busca por esses dados especificamente — eles são usados por uma validação automática antes de o resultado seguir adiante.
-6. Responda SOMENTE com um objeto JSON válido, sem markdown, sem comentários, sem texto antes ou depois, mesmo usando a ferramenta de busca.
+6. Busque ATIVAMENTE por desfalques/lesões recentes (últimas 48h) dos dois times antes de fechar a resposta — isso vai no campo "contexto.desfalques_casa"/"desfalques_visitante".
+7. Busque ATIVAMENTE a probabilidade implícita desse jogo em mercados de predição pública (ex: Polymarket) — se encontrar um mercado ativo pra esse jogo específico, preencha "sentimento_mercado"; se não encontrar nenhum mercado de predição real pra esse jogo, deixe "sentimento_mercado": null (nunca invente um valor).
+8. Responda SOMENTE com um objeto JSON válido, sem markdown, sem comentários, sem texto antes ou depois, mesmo usando a ferramenta de busca.
 `.trim();
+
+const SENTIMENTO_MERCADO_CAMPO = `"sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }`;
 
 /**
  * requisitosMinimos aqui espelha exatamente o mesmo array usado no front-end
@@ -65,7 +69,7 @@ const ESPORTES = {
     "desfalques_casa": ["<string>"],
     "desfalques_visitante": ["<string>"]
   },
-  "sentimento_mercado": null
+  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
 }`.trim(),
   },
 
@@ -100,7 +104,7 @@ const ESPORTES = {
     "park_factor": "<string|null>",
     "clima": "<string|null>"
   },
-  "sentimento_mercado": null
+  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
 }`.trim(),
   },
 
@@ -132,7 +136,7 @@ const ESPORTES = {
     "desfalques_casa": ["<string>"],
     "desfalques_visitante": ["<string>"]
   },
-  "sentimento_mercado": null
+  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
 }`.trim(),
   },
 
@@ -168,7 +172,7 @@ const ESPORTES = {
     "desfalques_casa": ["<string>"],
     "desfalques_visitante": ["<string>"]
   },
-  "sentimento_mercado": null
+  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
 }`.trim(),
   },
 
@@ -203,7 +207,7 @@ const ESPORTES = {
     "desfalques_visitante": ["<string>"],
     "observacao_amostra": "<string, obrigatório: explica quantos jogos da temporada atual sustentam os números acima>"
   },
-  "sentimento_mercado": null
+  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
 }`.trim(),
   },
 };
