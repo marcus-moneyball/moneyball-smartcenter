@@ -16,6 +16,17 @@
       margin: 0;
       text-align: center;
     }
+    
+    .container {
+      background: #111827;
+      border: 1px solid #1f2937;
+      padding: 2rem;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
     .status {
       display: inline-block;
       padding: 0.3rem 0.8rem;
@@ -26,15 +37,146 @@
       font-size: 0.85rem;
       margin-bottom: 1rem;
     }
-    h1 { font-size: 1.3rem; margin: 0.3rem 0; }
-    p { color: #6b7280; font-size: 0.85rem; }
+
+    h1 { 
+      font-size: 1.4rem; 
+      margin: 0.3rem 0; 
+      color: #ffffff;
+    }
+
+    p { 
+      color: #9ca3af; 
+      font-size: 0.85rem; 
+      margin-bottom: 2rem;
+    }
+
+    /* Estilos do Seletor de Persona */
+    .selector-label {
+      display: block;
+      text-align: left;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #d1d5db;
+      margin-bottom: 0.75rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 1rem 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card:hover {
+      border-color: #6b7280;
+    }
+
+    /* Classes Ativas dinâmicas via JS */
+    .card.active-carlos {
+      border-color: #f97316;
+      background: rgba(249, 115, 22, 0.1);
+      color: #ffffff;
+    }
+
+    .card.active-cris {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      color: #ffffff;
+    }
+
+    .icon { font-size: 1.8rem; }
+    .name { font-weight: bold; font-size: 0.95rem; margin: 0; }
+    .desc { font-size: 0.7rem; opacity: 0.7; margin: 0; }
+
+    /* Botão de Ação Principal */
+    .btn-analisar {
+      width: 100%;
+      padding: 0.85rem;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-analisar:hover {
+      background: #2563eb;
+    }
   </style>
 </head>
 <body>
-  <div>
+  
+  <div class="container">
     <div class="status">● status: ok</div>
-    <h1>Moneyball Radar Engine — online</h1>
-    <p>Este projeto não tem interface própria ainda — as rotas ativas ficam em /api/*</p>
+    <h1>Moneyball 2.0</h1>
+    <p>O radar quantitativo de mercado.</p>
+
+    <label class="selector-label">Escolha seu Especialista:</label>
+    
+    <div class="grid">
+      <!-- Botão Carlos Rivera -->
+      <div class="card active-carlos" id="btn-carlos" onclick="selectPersona('carlos')">
+        <span class="icon">🥊</span>
+        <p class="name">Carlos Rivera</p>
+        <p class="desc">Valor & Estratégia</p>
+      </div>
+
+      <!-- Botão Cris -->
+      <div class="card" id="btn-cris" onclick="selectPersona('cris')">
+        <span class="icon">🎯</span>
+        <p class="name">Cris</p>
+        <p class="desc">Tiro Certo & Proteção</p>
+      </div>
+    </div>
+
+    <!-- Campo oculto para enviar a escolha para a API -->
+    <input type="hidden" id="selected-persona" value="carlos">
+
+    <button class="btn-analisar" onclick="enviarParaEngine()">Processar Análise</button>
   </div>
+
+  <script>
+    // Lógica para alternar a seleção visual e atualizar o valor do input
+    function selectPersona(persona) {
+      const btnCarlos = document.getElementById('btn-carlos');
+      const btnCris = document.getElementById('btn-cris');
+      const inputSelected = document.getElementById('selected-persona');
+
+      if (persona === 'carlos') {
+        btnCarlos.classList.add('active-carlos');
+        btnCris.classList.remove('active-cris');
+        inputSelected.value = 'carlos';
+      } else {
+        btnCris.classList.add('active-cris');
+        btnCarlos.classList.remove('active-carlos');
+        inputSelected.value = 'cris';
+      }
+    }
+
+    // Função mock para simular o disparo para o seu backend
+    function enviarParaEngine() {
+      const personaEscolhida = document.getElementById('selected-persona').value;
+      const nomeExibicao = personaEscolhida === 'carlos' ? 'Carlos Rivera 🥊' : 'Cris 🎯';
+      
+      alert(`Você chamou o(a) ${nomeExibicao}!\n\nAqui você fará o POST para a rota /api/ enviando o print e o parâmetro 'persona: ${personaEscolhida}'.`);
+    }
+  </script>
+
 </body>
 </html>
