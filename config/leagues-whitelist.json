@@ -1,0 +1,8 @@
+{
+  "_comentario": "api_sports_id vem do endpoint /leagues da API-Sports. Adicione/remova ligas aqui sem tocar em código. pontos_corridos=false marca torneio/mata-mata (informativo, não bloqueia coleta).",
+  "ligas": [
+    { "api_sports_id": 71, "nome": "Brasileirão Série A", "pais": "Brasil", "pontos_corridos": true, "habilitada": true },
+    { "api_sports_id": 39, "nome": "Premier League", "pais": "Inglaterra", "pontos_corridos": true, "habilitada": true },
+    { "api_sports_id": 253, "nome": "MLS", "pais": "EUA", "pontos_corridos": true, "habilitada": true }
+  ]
+}
