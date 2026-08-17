@@ -131,6 +131,100 @@ async function obterUsoApiSportsHoje() {
   return resultado.rows[0]?.requisicoes_usadas ?? 0;
 }
 
+/**
+ * obterFixturesDoDiaComOdds()
+ * Traz os jogos coletados hoje + nomes dos times + liga + primeira e última
+ * odd de moneyline/1x2 capturadas (pra calcular volume de movimento no score
+ * de hype). Não calcula nada — só junta os dados brutos.
+ */
+async function obterFixturesDoDiaComOdds() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const resultado = await query(
+    `SELECT
+       f.id, f.api_sports_id, f.data_hora, f.status,
+       l.api_sports_id AS liga_api_sports_id, l.nome AS liga_nome,
+       tc.nome AS time_casa, tv.nome AS time_visitante
+     FROM fixtures f
+     JOIN leagues l ON l.id = f.liga_id
+     JOIN teams tc ON tc.id = f.time_casa_id
+     JOIN teams tv ON tv.id = f.time_visitante_id
+     WHERE f.data_hora::date = $1
+     ORDER BY f.data_hora ASC`,
+    [hoje]
+  );
+
+  // Busca abertura/atual separadamente por fixture (mais simples e legível
+  // que uma janela SQL complexa embutida acima).
+  const fixtures = [];
+  for (const linha of resultado.rows) {
+    const movimento = await query(
+      `SELECT mercado, selecao, valor, capturado_em
+       FROM odds_snapshots
+       WHERE fixture_id = $1
+       ORDER BY capturado_em ASC`,
+      [linha.id]
+    );
+    fixtures.push({
+      id: linha.id,
+      apiSportsId: linha.api_sports_id,
+      dataHora: linha.data_hora,
+      status: linha.status,
+      ligaApiSportsId: linha.liga_api_sports_id,
+      ligaNome: linha.liga_nome,
+      timeCasa: linha.time_casa,
+      timeVisitante: linha.time_visitante,
+      snapshotsOdds: movimento.rows,
+    });
+  }
+  return fixtures;
+}
+
+async function marcarFixtureAprovado(fixtureId, aprovado) {
+  await query(`UPDATE fixtures SET aprovado_glv = $2 WHERE id = $1`, [fixtureId, aprovado]);
+}
+
+async function obterFixturePorId(fixtureId) {
+  const resultado = await query(
+    `SELECT
+       f.id, f.api_sports_id, f.data_hora, f.temporada,
+       l.api_sports_id AS liga_api_sports_id, l.nome AS liga_nome,
+       tc.id AS time_casa_id, tc.nome AS time_casa, tc.api_sports_id AS time_casa_api_sports_id,
+       tv.id AS time_visitante_id, tv.nome AS time_visitante, tv.api_sports_id AS time_visitante_api_sports_id
+     FROM fixtures f
+     JOIN leagues l ON l.id = f.liga_id
+     JOIN teams tc ON tc.id = f.time_casa_id
+     JOIN teams tv ON tv.id = f.time_visitante_id
+     WHERE f.id = $1`,
+    [fixtureId]
+  );
+  if (resultado.rows.length === 0) return null;
+
+  const fixture = resultado.rows[0];
+
+  const odds = await query(
+    `SELECT DISTINCT ON (mercado, selecao) mercado, selecao, valor, capturado_em
+     FROM odds_snapshots WHERE fixture_id = $1
+     ORDER BY mercado, selecao, capturado_em DESC`,
+    [fixtureId]
+  );
+
+  const statsCasa = await query(
+    `SELECT dados FROM team_stats WHERE team_id = $1 AND temporada = $2`,
+    [fixture.time_casa_id, fixture.temporada]
+  );
+  const statsVisitante = await query(
+    `SELECT dados FROM team_stats WHERE team_id = $1 AND temporada = $2`,
+    [fixture.time_visitante_id, fixture.temporada]
+  );
+
+  return {
+    ...fixture,
+    oddsAtuais: odds.rows,
+    statsCasa: statsCasa.rows[0]?.dados ?? null,
+    statsVisitante: statsVisitante.rows[0]?.dados ?? null,
+  };
+}
+
 module.exports = {
   query,
   upsertLiga,
@@ -141,4 +235,7 @@ module.exports = {
   salvarStatsDeTime,
   registrarUsoApiSports,
   obterUsoApiSportsHoje,
+  obterFixturesDoDiaComOdds,
+  marcarFixtureAprovado,
+  obterFixturePorId,
 };
