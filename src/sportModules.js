@@ -67,19 +67,6 @@ const MODULES = {
     ],
   },
 
-  nfl: {
-    label: 'Futebol Americano (NFL)',
-    icon: 'fa-football',
-    mercados: ['Moneyline', 'Spread', 'Total de Pontos', 'Props de Jogador'],
-    margensSeguranca: {
-      Spread: { valor: 2, unidade: 'pontos vs. projeção de EPA/play', comparacao: 'linha do spread vs. diferença projetada de EPA/play entre os times' },
-      'Total de Pontos': { valor: 3, unidade: 'pontos de discrepância', comparacao: 'linha de totais vs. total projetado' },
-    },
-    requisitosMinimos: [
-      { label: 'EPA/play (ofensivo e defensivo)', palavrasChave: ['epa_play', 'epa/play', 'epa por jogada'] },
-      { label: 'Success Rate', palavrasChave: ['success_rate', 'success rate', 'taxa de sucesso'] },
-    ],
-  },
 };
 
 module.exports = { MODULES };
