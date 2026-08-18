@@ -38,36 +38,36 @@ async function query(texto, parametros) {
  * código. Todas idempotentes (ON CONFLICT), seguro rodar o cron várias vezes.
  */
 
-async function upsertLiga({ apiSportsId, nome, pais, pontosCorridos }) {
+async function upsertLiga({ esporte, apiSportsId, nome, pais, pontosCorridos }) {
   const resultado = await query(
-    `INSERT INTO leagues (api_sports_id, nome, pais, pontos_corridos)
+    `INSERT INTO leagues (esporte, api_sports_id, nome, pais, pontos_corridos)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (esporte, api_sports_id) DO UPDATE SET nome = EXCLUDED.nome
+     RETURNING id`,
+    [esporte, apiSportsId, nome, pais, pontosCorridos]
+  );
+  return resultado.rows[0].id;
+}
+
+async function upsertTime({ esporte, apiSportsId, nome, ligaId }) {
+  const resultado = await query(
+    `INSERT INTO teams (esporte, api_sports_id, nome, liga_id)
      VALUES ($1, $2, $3, $4)
-     ON CONFLICT (api_sports_id) DO UPDATE SET nome = EXCLUDED.nome
+     ON CONFLICT (esporte, api_sports_id) DO UPDATE SET nome = EXCLUDED.nome
      RETURNING id`,
-    [apiSportsId, nome, pais, pontosCorridos]
+    [esporte, apiSportsId, nome, ligaId]
   );
   return resultado.rows[0].id;
 }
 
-async function upsertTime({ apiSportsId, nome, ligaId }) {
+async function upsertFixture({ esporte, apiSportsId, ligaId, timeCasaId, timeVisitanteId, temporada, dataHora, status }) {
   const resultado = await query(
-    `INSERT INTO teams (api_sports_id, nome, liga_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (api_sports_id) DO UPDATE SET nome = EXCLUDED.nome
-     RETURNING id`,
-    [apiSportsId, nome, ligaId]
-  );
-  return resultado.rows[0].id;
-}
-
-async function upsertFixture({ apiSportsId, ligaId, timeCasaId, timeVisitanteId, temporada, dataHora, status }) {
-  const resultado = await query(
-    `INSERT INTO fixtures (api_sports_id, liga_id, time_casa_id, time_visitante_id, temporada, data_hora, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     ON CONFLICT (api_sports_id) DO UPDATE SET
+    `INSERT INTO fixtures (esporte, api_sports_id, liga_id, time_casa_id, time_visitante_id, temporada, data_hora, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (esporte, api_sports_id) DO UPDATE SET
        status = EXCLUDED.status, data_hora = EXCLUDED.data_hora, atualizado_em = now()
      RETURNING id`,
-    [apiSportsId, ligaId, timeCasaId, timeVisitanteId, temporada, dataHora, status]
+    [esporte, apiSportsId, ligaId, timeCasaId, timeVisitanteId, temporada, dataHora, status]
   );
   return resultado.rows[0].id;
 }
@@ -109,24 +109,24 @@ async function salvarStatsDeTime(teamId, temporada, dados) {
   );
 }
 
-/** Cota diária — evita estourar as 100 req/dia da API-Sports sem perceber. */
-async function registrarUsoApiSports(quantidade = 1) {
+/** Cota diária — evita estourar as 100 req/dia da API-Sports sem perceber. Cada esporte tem cota própria. */
+async function registrarUsoApiSports(esporte, quantidade = 1) {
   const hoje = new Date().toISOString().slice(0, 10);
   await query(
-    `INSERT INTO api_sports_uso_diario (data, requisicoes_usadas)
-     VALUES ($1, $2)
-     ON CONFLICT (data) DO UPDATE SET
-       requisicoes_usadas = api_sports_uso_diario.requisicoes_usadas + $2,
+    `INSERT INTO api_sports_uso_diario (data, esporte, requisicoes_usadas)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (data, esporte) DO UPDATE SET
+       requisicoes_usadas = api_sports_uso_diario.requisicoes_usadas + $3,
        atualizado_em = now()`,
-    [hoje, quantidade]
+    [hoje, esporte, quantidade]
   );
 }
 
-async function obterUsoApiSportsHoje() {
+async function obterUsoApiSportsHoje(esporte) {
   const hoje = new Date().toISOString().slice(0, 10);
   const resultado = await query(
-    `SELECT requisicoes_usadas FROM api_sports_uso_diario WHERE data = $1`,
-    [hoje]
+    `SELECT requisicoes_usadas FROM api_sports_uso_diario WHERE data = $1 AND esporte = $2`,
+    [hoje, esporte]
   );
   return resultado.rows[0]?.requisicoes_usadas ?? 0;
 }
@@ -141,7 +141,7 @@ async function obterFixturesDoDiaComOdds() {
   const hoje = new Date().toISOString().slice(0, 10);
   const resultado = await query(
     `SELECT
-       f.id, f.api_sports_id, f.data_hora, f.status,
+       f.id, f.api_sports_id, f.esporte, f.data_hora, f.status,
        l.api_sports_id AS liga_api_sports_id, l.nome AS liga_nome,
        tc.nome AS time_casa, tv.nome AS time_visitante
      FROM fixtures f
@@ -167,6 +167,7 @@ async function obterFixturesDoDiaComOdds() {
     fixtures.push({
       id: linha.id,
       apiSportsId: linha.api_sports_id,
+      esporte: linha.esporte,
       dataHora: linha.data_hora,
       status: linha.status,
       ligaApiSportsId: linha.liga_api_sports_id,
@@ -186,7 +187,7 @@ async function marcarFixtureAprovado(fixtureId, aprovado) {
 async function obterFixturePorId(fixtureId) {
   const resultado = await query(
     `SELECT
-       f.id, f.api_sports_id, f.data_hora, f.temporada,
+       f.id, f.api_sports_id, f.esporte, f.data_hora, f.temporada,
        l.api_sports_id AS liga_api_sports_id, l.nome AS liga_nome,
        tc.id AS time_casa_id, tc.nome AS time_casa, tc.api_sports_id AS time_casa_api_sports_id,
        tv.id AS time_visitante_id, tv.nome AS time_visitante, tv.api_sports_id AS time_visitante_api_sports_id
@@ -225,6 +226,37 @@ async function obterFixturePorId(fixtureId) {
   };
 }
 
+/**
+ * inserirOddsApiSnapshots(eventos)
+ * Grava snapshots da The Odds API — tabela própria (odds_api_snapshots),
+ * sem tentar casar com fixtures da API-Sports (provedores diferentes têm
+ * IDs diferentes; casar por nome de time é responsabilidade de quem
+ * consome, não deste gravador).
+ */
+async function inserirOddsApiSnapshots(eventos) {
+  for (const evento of eventos) {
+    for (const snapshot of evento.snapshots) {
+      // eslint-disable-next-line no-await-in-loop
+      await query(
+        `INSERT INTO odds_api_snapshots
+           (sport_key, evento_id, time_casa, time_visitante, comeca_em, bookmaker, mercado, selecao, valor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          evento.sportKey,
+          evento.eventoId,
+          evento.timeCasa,
+          evento.timeVisitante,
+          evento.comecaEm,
+          snapshot.bookmaker,
+          snapshot.mercado,
+          snapshot.selecao,
+          snapshot.valor,
+        ]
+      );
+    }
+  }
+}
+
 module.exports = {
   query,
   upsertLiga,
@@ -238,4 +270,5 @@ module.exports = {
   obterFixturesDoDiaComOdds,
   marcarFixtureAprovado,
   obterFixturePorId,
+  inserirOddsApiSnapshots,
 };
