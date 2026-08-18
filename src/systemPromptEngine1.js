@@ -176,40 +176,6 @@ const ESPORTES = {
 }`.trim(),
   },
 
-  nfl: {
-    label: 'Futebol Americano (NFL)',
-    liga_preferencial: 'NFL (temporada regular)',
-    mercados: ['Moneyline', 'Spread', 'Total de Pontos', 'Props de Jogador'],
-    requisitosMinimos: ['EPA/play (ofensivo e defensivo)', 'Success Rate'],
-    avisoAmostra:
-      'A NFL tem só ~17 jogos por temporada — "forma recente" aqui NUNCA deve ser janela de 10-15 jogos. Priorize as estatísticas mais atuais disponíveis da temporada corrente; se a temporada está no início, é aceitável e ESPERADO complementar com dado da temporada anterior — registre isso explicitamente em "contexto.observacao_amostra", nunca finja que a amostra é maior do que é.',
-    contrato: `
-{
-  "esporte": "nfl",
-  "liga": "NFL",
-  "casa": "<string>",
-  "visitante": "<string>",
-  "odds": {
-    "moneyline": { "casa": <number|null>, "visitante": <number|null> },
-    "spread": { "linha": <number|null>, "casa": <number|null>, "visitante": <number|null> },
-    "total_pontos": { "linha": <number|null>, "over": <number|null>, "under": <number|null> },
-    "props_jogador": [{ "jogador": "<string>", "mercado": "<string>", "linha": <number|null>, "over": <number|null>, "under": <number|null> }]
-  },
-  "estatisticas": {
-    "epa_play_ofensivo_casa": <number|null>, "epa_play_ofensivo_visitante": <number|null>,
-    "epa_play_defensivo_casa": <number|null>, "epa_play_defensivo_visitante": <number|null>,
-    "success_rate_casa": <number|null>, "success_rate_visitante": <number|null>
-  },
-  "contexto": {
-    "resumo_casa": "<string>",
-    "resumo_visitante": "<string>",
-    "desfalques_casa": ["<string>"],
-    "desfalques_visitante": ["<string>"],
-    "observacao_amostra": "<string, obrigatório: explica quantos jogos da temporada atual sustentam os números acima>"
-  },
-  "sentimento_mercado": { "fonte": "<string, ex: polymarket|null>", "probabilidade_implicita_casa": <number 0-1|null>, "probabilidade_implicita_visitante": <number 0-1|null>, "probabilidade_implicita_empate": <number 0-1|null>, "url_mercado": "<string|null>", "observacao": "<string|null>" }
-}`.trim(),
-  },
 };
 
 function montarSystemPromptEngine1(esporte) {
