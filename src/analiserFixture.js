@@ -9,11 +9,11 @@ const { MODULES } = require('./sportModules');
 const { publicarPalpiteNoGhost } = require('./ghostService');
 
 /**
- * Mapeia liga da API-Sports pro esporte/módulo do Groq. Hoje só futebol
- * está na whitelist da coleta noturna — cresce aqui quando MLB/NBA entrarem.
+ * Esporte já vem gravado no fixture (coleta noturna grava por produto:
+ * futebol/basquete/beisebol) — só repassa.
  */
 function mapearEsporte(fixture) {
-  return 'futebol';
+  return fixture.esporte;
 }
 
 /**
