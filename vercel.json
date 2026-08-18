@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/coleta-noturna",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/coleta-odds",
+      "schedule": "0 5 * * *"
     }
   ]
 }
