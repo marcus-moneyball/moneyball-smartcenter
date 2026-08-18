@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Moneyball — Aprovar Rodada</title>
+<title>Moneyball — Painel do Dia</title>
 <style>
   :root {
     --bg: #05070d;
@@ -14,6 +14,7 @@
     --accent-dim: #00c853;
     --text: #e5e7eb;
     --muted: #6b7280;
+    --erro: #ef4444;
   }
   * { box-sizing: border-box; }
   body {
@@ -22,14 +23,14 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     margin: 0;
     padding: 1.25rem;
-    max-width: 720px;
+    max-width: 780px;
     margin-inline: auto;
   }
   h1 { font-size: 1.3rem; margin: 0 0 0.25rem; }
-  .subtitulo { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .subtitulo { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem; }
   #config {
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 1rem; margin-bottom: 1.25rem;
+    padding: 1rem; margin-bottom: 1.5rem;
   }
   #config label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.3rem; }
   #config input {
@@ -38,51 +39,75 @@
   }
   button {
     font-family: inherit; font-weight: 700; border: none; border-radius: 8px;
-    padding: 0.7rem 1.1rem; cursor: pointer;
+    padding: 0.65rem 1.1rem; cursor: pointer;
   }
-  .btn-primario { background: var(--accent); color: #000; }
+  .btn-primario { background: var(--accent); color: #000; width: 100%; }
   .btn-primario:hover { background: var(--accent-dim); }
-  .btn-primario:disabled { opacity: 0.5; cursor: wait; }
-  #lista { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .liga-secao { margin-bottom: 1.75rem; }
+  .liga-titulo {
+    display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; font-weight: 800;
+    margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+  }
+  .liga-emoji { font-size: 1.2rem; }
+
   .jogo {
-    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-    padding: 1rem; display: flex; gap: 0.75rem; align-items: flex-start;
+    width: 100%; text-align: left; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 0.9rem 1rem; margin-bottom: 0.6rem; cursor: pointer;
+    transition: border-color .15s, opacity .15s;
+    display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
   }
-  .jogo input[type="checkbox"] { width: 20px; height: 20px; margin-top: 0.2rem; accent-color: var(--accent); }
-  .jogo-titulo { font-weight: 700; font-size: 1rem; }
-  .jogo-liga { color: var(--muted); font-size: 0.75rem; margin-top: 0.15rem; }
+  .jogo:hover:not(:disabled) { border-color: var(--accent); }
+  .jogo:disabled { cursor: wait; opacity: 0.7; }
+  .jogo.publicado { border-color: var(--accent); background: rgba(0,230,118,0.06); }
+  .jogo.erro { border-color: var(--erro); }
+
+  .jogo-info { flex: 1; min-width: 0; }
+  .jogo-titulo { font-weight: 700; font-size: 0.95rem; }
+  .jogo-detalhe { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
   .score {
-    display: inline-block; margin-top: 0.4rem; font-size: 0.7rem; font-weight: 700;
-    background: rgba(0,230,118,0.15); color: var(--accent); padding: 2px 8px; border-radius: 999px;
+    font-size: 0.7rem; font-weight: 700; background: rgba(0,230,118,0.15); color: var(--accent);
+    padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
-  .motivos { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
-  #rodape { position: sticky; bottom: 0; background: var(--bg); padding-top: 1rem; margin-top: 1rem; }
-  #status { font-size: 0.85rem; color: #ffca28; margin-top: 0.6rem; }
+  .jogo-status { font-size: 0.75rem; white-space: nowrap; flex-shrink: 0; }
+  .jogo-status.ok { color: var(--accent); }
+  .jogo-status.erro-txt { color: var(--erro); }
+  .jogo-status.andamento { color: #ffca28; }
+
   .vazio { color: var(--muted); text-align: center; padding: 2rem 0; font-size: 0.9rem; }
 </style>
 </head>
 <body>
-  <h1>Aprovar rodada de hoje</h1>
-  <p class="subtitulo">Marque os jogos que quer publicar no Ghost. Ordenado por score de hype.</p>
+  <h1>Painel do dia</h1>
+  <p class="subtitulo">Clique num jogo pra analisar e publicar no Ghost.</p>
 
   <div id="config">
     <label>URL do backend</label>
     <input id="backend-url" placeholder="https://seu-projeto.vercel.app">
     <label>CRON_SECRET</label>
     <input id="backend-secret" type="password" placeholder="cole aqui">
-    <button class="btn-primario" onclick="carregarLista()">Carregar lista de hoje</button>
+    <button class="btn-primario" onclick="carregarPainel()">Carregar jogos de hoje</button>
   </div>
 
-  <div id="lista"></div>
-
-  <div id="rodape" style="display:none;">
-    <button class="btn-primario" id="btn-aprovar" onclick="aprovarSelecionados()">Aprovar selecionados</button>
-    <div id="status"></div>
-  </div>
+  <div id="conteudo"></div>
 
 <script>
   const LS_URL = 'moneyball_backend_url';
   const LS_SECRET = 'moneyball_backend_secret';
+
+  const EMOJI_POR_LIGA = {
+    'Brasileirão Série A': '🇧🇷',
+    'Premier League': '🏴',
+    'Copa Libertadores': '🏆',
+    'Champions League': '⭐',
+    'La Liga': '🇪🇸',
+    'Bundesliga': '🇩🇪',
+    'Ligue 1': '🇫🇷',
+    'Serie A': '🇮🇹',
+    'Europa League': '🏆',
+    'NBA': '🏀',
+    'MLB': '⚾',
+  };
 
   document.getElementById('backend-url').value = localStorage.getItem(LS_URL) || '';
   document.getElementById('backend-secret').value = localStorage.getItem(LS_SECRET) || '';
@@ -95,12 +120,20 @@
     return { url, secret };
   }
 
-  async function carregarLista() {
+  function agruparPorLiga(jogos) {
+    const grupos = {};
+    for (const jogo of jogos) {
+      const chave = jogo.ligaNome || 'Outros';
+      if (!grupos[chave]) grupos[chave] = [];
+      grupos[chave].push(jogo);
+    }
+    return grupos;
+  }
+
+  async function carregarPainel() {
     const { url, secret } = config();
-    const lista = document.getElementById('lista');
-    const rodape = document.getElementById('rodape');
-    lista.innerHTML = '<p class="vazio">Carregando...</p>';
-    rodape.style.display = 'none';
+    const conteudo = document.getElementById('conteudo');
+    conteudo.innerHTML = '<p class="vazio">Carregando...</p>';
 
     try {
       const resp = await fetch(`${url}/api/lista-do-dia`, {
@@ -109,66 +142,73 @@
       const dados = await resp.json();
 
       if (!resp.ok || !dados.sucesso) {
-        lista.innerHTML = `<p class="vazio">Erro: ${dados.erro || resp.status}</p>`;
+        conteudo.innerHTML = `<p class="vazio">Erro: ${dados.erro || resp.status}</p>`;
         return;
       }
 
       if (dados.jogos.length === 0) {
-        lista.innerHTML = '<p class="vazio">Nenhum jogo coletado hoje ainda.</p>';
+        conteudo.innerHTML = '<p class="vazio">Nenhum jogo coletado hoje ainda.</p>';
         return;
       }
 
-      lista.innerHTML = dados.jogos.map((jogo) => `
-        <label class="jogo">
-          <input type="checkbox" value="${jogo.id}">
-          <div>
-            <div class="jogo-titulo">${jogo.timeCasa} x ${jogo.timeVisitante}</div>
-            <div class="jogo-liga">${jogo.ligaNome}</div>
-            <span class="score">Score ${jogo.hype.score}</span>
-            <div class="motivos">${jogo.hype.motivos.join(' · ') || 'Sem sinais de hype específicos'}</div>
+      const grupos = agruparPorLiga(dados.jogos);
+      conteudo.innerHTML = Object.entries(grupos).map(([liga, jogos]) => `
+        <div class="liga-secao">
+          <div class="liga-titulo">
+            <span class="liga-emoji">${EMOJI_POR_LIGA[liga] || '⚽'}</span>
+            <span>${liga}</span>
           </div>
-        </label>
+          ${jogos.map((jogo) => `
+            <button class="jogo" id="jogo-${jogo.id}" onclick="analisarEPublicar(${jogo.id})">
+              <div class="jogo-info">
+                <div class="jogo-titulo">${jogo.timeCasa} x ${jogo.timeVisitante}</div>
+                <div class="jogo-detalhe">${jogo.hype.motivos.join(' · ') || 'Sem sinais de hype específicos'}</div>
+              </div>
+              <span class="score">Score ${jogo.hype.score}</span>
+              <span class="jogo-status" id="status-${jogo.id}"></span>
+            </button>
+          `).join('')}
+        </div>
       `).join('');
-
-      rodape.style.display = 'block';
     } catch (e) {
-      lista.innerHTML = `<p class="vazio">Erro de conexão: ${e.message}</p>`;
+      conteudo.innerHTML = `<p class="vazio">Erro de conexão: ${e.message}</p>`;
     }
   }
 
-  async function aprovarSelecionados() {
+  async function analisarEPublicar(fixtureId) {
     const { url, secret } = config();
-    const selecionados = Array.from(document.querySelectorAll('#lista input:checked')).map((el) => Number(el.value));
-    const status = document.getElementById('status');
-    const btn = document.getElementById('btn-aprovar');
+    const botao = document.getElementById(`jogo-${fixtureId}`);
+    const status = document.getElementById(`status-${fixtureId}`);
 
-    if (selecionados.length === 0) {
-      alert('Marque pelo menos um jogo.');
-      return;
-    }
-
-    btn.disabled = true;
-    status.textContent = `⏳ Analisando e publicando ${selecionados.length} jogo(s)... pode demorar um pouco.`;
+    botao.disabled = true;
+    status.className = 'jogo-status andamento';
+    status.textContent = '⏳ Analisando...';
 
     try {
       const resp = await fetch(`${url}/api/aprovar-jogos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
-        body: JSON.stringify({ fixture_ids: selecionados }),
+        body: JSON.stringify({ fixture_ids: [fixtureId] }),
       });
       const dados = await resp.json();
+      const resultado = dados.resultados?.[0];
 
-      if (!resp.ok || !dados.sucesso) {
-        status.textContent = `❌ Erro: ${dados.erro || resp.status}`;
+      if (!resp.ok || !dados.sucesso || !resultado?.sucesso) {
+        botao.classList.add('erro');
+        status.className = 'jogo-status erro-txt';
+        status.textContent = `❌ ${resultado?.erros?.[0] || dados.erro || 'Erro'}`;
+        botao.disabled = false;
         return;
       }
 
-      const ok = dados.resultados.filter((r) => r.sucesso).length;
-      status.textContent = `✅ ${ok}/${dados.resultados.length} publicados como rascunho no Ghost.`;
+      botao.classList.add('publicado');
+      status.className = 'jogo-status ok';
+      status.textContent = '✅ Publicado no Ghost';
     } catch (e) {
-      status.textContent = `❌ Erro de conexão: ${e.message}`;
-    } finally {
-      btn.disabled = false;
+      botao.classList.add('erro');
+      status.className = 'jogo-status erro-txt';
+      status.textContent = `❌ ${e.message}`;
+      botao.disabled = false;
     }
   }
 </script>
