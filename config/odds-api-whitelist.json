@@ -1,0 +1,11 @@
+{
+  "_comentario": "sport_key é o formato próprio da The Odds API (diferente dos IDs da API-Sports). Lista completa e atualizada em https://api.the-odds-api.com/v4/sports?apiKey=SUA_KEY — confirme os valores antes de rodar em produção, eles mudam ocasionalmente.",
+  "sport_keys": [
+    { "sport_key": "soccer_brazil_campeonato", "nome": "Brasileirão Série A", "habilitado": true },
+    { "sport_key": "soccer_epl", "nome": "Premier League", "habilitado": true },
+    { "sport_key": "soccer_conmebol_copa_libertadores", "nome": "Copa Libertadores", "habilitado": true },
+    { "sport_key": "soccer_uefa_champs_league", "nome": "Champions League", "habilitado": true },
+    { "sport_key": "basketball_nba", "nome": "NBA", "habilitado": true },
+    { "sport_key": "baseball_mlb", "nome": "MLB", "habilitado": true }
+  ]
+}
