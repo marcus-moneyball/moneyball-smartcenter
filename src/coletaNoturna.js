@@ -2,7 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { criarClienteApiSports, LIMITE_DIARIO } = require('./apiSportsService');
+const { criarClienteFootballData } = require('./schedulesFutebol');
+const { criarClienteBalldontlie } = require('./schedulesBasquete');
+const { criarClienteMlbStatsApi } = require('./schedulesBeisebol');
 const db = require('./db');
 
 function carregarWhitelist() {
@@ -12,182 +14,207 @@ function carregarWhitelist() {
 }
 
 /**
- * coletarUmEsporte(esporte, ligasHabilitadas, opcoes)
- * Roda a coleta de fixtures+odds+stats de UM esporte, respeitando a cota
- * própria daquele produto (100/dia, independente dos outros esportes).
+ * coletarFutebol — 1 chamada cobre TODAS as competições configuradas.
  */
-async function coletarUmEsporte(esporte, ligasHabilitadas, opcoes) {
-  const { apiKey, hoje, temporadaAtual, margemSeguranca } = opcoes;
-  const cliente = criarClienteApiSports(apiKey, esporte);
+async function coletarFutebol(config, hoje) {
+  const ligasHabilitadas = (config.ligas || []).filter((l) => l.habilitada);
+  if (ligasHabilitadas.length === 0) return { status: 'sem_ligas_habilitadas' };
 
-  const usoJaFeito = await db.obterUsoApiSportsHoje(esporte);
-  let requisicoesUsadasNestaExecucao = 0;
+  const cliente = criarClienteFootballData(process.env.FOOTBALL_DATA_API_KEY);
+  const porCodigo = Object.fromEntries(ligasHabilitadas.map((l) => [l.codigo, l]));
 
-  async function orcamentoDisponivel() {
-    return usoJaFeito + requisicoesUsadasNestaExecucao < LIMITE_DIARIO - margemSeguranca;
+  const jogos = await cliente.buscarJogosDoDia(ligasHabilitadas.map((l) => l.codigo), hoje);
+
+  let gravados = 0;
+  for (const jogo of jogos) {
+    const ligaConfig = porCodigo[jogo.competition?.code];
+    if (!ligaConfig) continue; // jogo de competição fora da nossa whitelist, ignora
+
+    const ligaId = await db.upsertLiga({
+      esporte: 'futebol',
+      apiSportsId: ligaConfig.id_interno,
+      nome: ligaConfig.nome,
+      pais: ligaConfig.pais,
+      pontosCorridos: ligaConfig.pontos_corridos,
+    });
+
+    const timeCasaId = await db.upsertTime({
+      esporte: 'futebol',
+      apiSportsId: jogo.homeTeam.id,
+      nome: jogo.homeTeam.name,
+      ligaId,
+    });
+    const timeVisitanteId = await db.upsertTime({
+      esporte: 'futebol',
+      apiSportsId: jogo.awayTeam.id,
+      nome: jogo.awayTeam.name,
+      ligaId,
+    });
+
+    await db.upsertFixture({
+      esporte: 'futebol',
+      apiSportsId: jogo.id,
+      ligaId,
+      timeCasaId,
+      timeVisitanteId,
+      temporada: new Date(jogo.utcDate).getFullYear(),
+      dataHora: jogo.utcDate,
+      status: jogo.status,
+    });
+    gravados += 1;
   }
-  async function registrarChamada() {
-    requisicoesUsadasNestaExecucao += 1;
-    await db.registrarUsoApiSports(esporte, 1);
-  }
 
+  return { status: 'ok', jogos_coletados: jogos.length, jogos_gravados: gravados };
+}
+
+/**
+ * coletarBasquete — 1 chamada por liga (NBA, WNBA são "paths" diferentes
+ * no mesmo provedor, não dá pra combinar numa chamada só).
+ */
+async function coletarBasquete(config, hoje) {
+  const ligasHabilitadas = (config.ligas || []).filter((l) => l.habilitada);
+  if (ligasHabilitadas.length === 0) return { status: 'sem_ligas_habilitadas' };
+
+  const cliente = criarClienteBalldontlie(process.env.BALLDONTLIE_API_KEY);
   const resultadoPorLiga = [];
 
-  for (const liga of ligasHabilitadas) {
-    if (!(await orcamentoDisponivel())) {
-      resultadoPorLiga.push({ liga: liga.nome, status: 'pulada_orcamento_esgotado' });
-      continue;
-    }
-
+  for (const ligaConfig of ligasHabilitadas) {
     try {
+      const jogos = await cliente.buscarJogosDoDia(ligaConfig.path, hoje);
+
       const ligaId = await db.upsertLiga({
-        esporte,
-        apiSportsId: liga.api_sports_id,
-        nome: liga.nome,
-        pais: liga.pais,
-        pontosCorridos: liga.pontos_corridos,
+        esporte: 'basquete',
+        apiSportsId: ligaConfig.id_interno,
+        nome: ligaConfig.nome,
+        pais: 'EUA',
+        pontosCorridos: true,
       });
 
-      const jogosBrutos = await cliente.buscarJogosPorLigaEData(liga.api_sports_id, hoje, temporadaAtual);
-      await registrarChamada();
-
-      if (jogosBrutos.length === 0) {
-        resultadoPorLiga.push({ liga: liga.nome, status: 'sem_jogos_hoje' });
-        continue;
-      }
-
-      const fixtureIdsInternos = [];
-      const timesParaStats = new Set();
-
-      for (const item of jogosBrutos) {
-        // NOTA: campo "fixture"/"id" varia entre produtos — football usa
-        // item.fixture.{id,date,status}, basketball/baseball tendem a usar
-        // item.{id,date,status} direto no topo. Verifique contra uma
-        // resposta real se algo vier undefined.
-        const idJogo = item.fixture?.id ?? item.id;
-        const dataJogo = item.fixture?.date ?? item.date;
-        const statusJogo = item.fixture?.status?.short ?? item.status?.short ?? null;
-
+      let gravados = 0;
+      for (const jogo of jogos) {
         const timeCasaId = await db.upsertTime({
-          esporte,
-          apiSportsId: item.teams.home.id,
-          nome: item.teams.home.name,
+          esporte: 'basquete',
+          apiSportsId: jogo.home_team.id,
+          nome: jogo.home_team.full_name,
           ligaId,
         });
         const timeVisitanteId = await db.upsertTime({
-          esporte,
-          apiSportsId: item.teams.away.id,
-          nome: item.teams.away.name,
+          esporte: 'basquete',
+          apiSportsId: jogo.visitor_team.id,
+          nome: jogo.visitor_team.full_name,
           ligaId,
         });
 
-        const fixtureId = await db.upsertFixture({
-          esporte,
-          apiSportsId: idJogo,
+        await db.upsertFixture({
+          esporte: 'basquete',
+          apiSportsId: jogo.id,
           ligaId,
           timeCasaId,
           timeVisitanteId,
-          temporada: temporadaAtual,
-          dataHora: dataJogo,
-          status: statusJogo,
+          temporada: jogo.season,
+          dataHora: jogo.date,
+          status: jogo.status,
         });
-
-        fixtureIdsInternos.push({ apiSportsId: idJogo, id: fixtureId });
-        timesParaStats.add(JSON.stringify({ apiSportsId: item.teams.home.id, id: timeCasaId }));
-        timesParaStats.add(JSON.stringify({ apiSportsId: item.teams.away.id, id: timeVisitanteId }));
+        gravados += 1;
       }
 
-      let oddsInseridas = 0;
-      if (await orcamentoDisponivel()) {
-        const oddsBrutas = await cliente.buscarOddsPorLigaEData(liga.api_sports_id, hoje, temporadaAtual);
-        await registrarChamada();
-
-        for (const itemOdds of oddsBrutas) {
-          const idJogoOdds = itemOdds.fixture?.id ?? itemOdds.game?.id ?? itemOdds.id;
-          const fixtureCorrespondente = fixtureIdsInternos.find((f) => f.apiSportsId === idJogoOdds);
-          if (!fixtureCorrespondente) continue;
-
-          const snapshots = [];
-          for (const bookmaker of itemOdds.bookmakers ?? []) {
-            for (const bet of bookmaker.bets ?? []) {
-              for (const valorAposta of bet.values ?? []) {
-                snapshots.push({
-                  mercado: bet.name,
-                  selecao: `${bookmaker.name}:${valorAposta.value}`,
-                  valor: Number(valorAposta.odd),
-                });
-              }
-            }
-          }
-          await db.inserirOddsSnapshots(fixtureCorrespondente.id, snapshots);
-          oddsInseridas += snapshots.length;
-        }
-      }
-
-      let statsAtualizadas = 0;
-      for (const timeSerializado of timesParaStats) {
-        if (!(await orcamentoDisponivel())) break;
-        const time = JSON.parse(timeSerializado);
-        const fresca = await db.statsDeTimeEstaoFrescas(time.id, temporadaAtual);
-        if (fresca) continue;
-
-        const stats = await cliente.buscarEstatisticasDeTime(time.apiSportsId, liga.api_sports_id, temporadaAtual);
-        await registrarChamada();
-        await db.salvarStatsDeTime(time.id, temporadaAtual, stats);
-        statsAtualizadas += 1;
-      }
-
-      resultadoPorLiga.push({
-        liga: liga.nome,
-        status: 'ok',
-        jogos_coletados: jogosBrutos.length,
-        odds_inseridas: oddsInseridas,
-        stats_de_time_atualizadas: statsAtualizadas,
-      });
+      resultadoPorLiga.push({ liga: ligaConfig.nome, status: 'ok', jogos_coletados: jogos.length, jogos_gravados: gravados });
     } catch (erro) {
-      resultadoPorLiga.push({ liga: liga.nome, status: 'erro', erro: erro.message });
+      resultadoPorLiga.push({ liga: ligaConfig.nome, status: 'erro', erro: erro.message });
     }
   }
 
-  return {
-    requisicoes_usadas_nesta_execucao: requisicoesUsadasNestaExecucao,
-    requisicoes_usadas_hoje_total: usoJaFeito + requisicoesUsadasNestaExecucao,
-    limite_diario: LIMITE_DIARIO,
-    resultado_por_liga: resultadoPorLiga,
-  };
+  return { status: 'ok', resultado_por_liga: resultadoPorLiga };
+}
+
+/**
+ * coletarBeisebol — MLB Stats API, sem chave, sem limite conhecido.
+ */
+async function coletarBeisebol(config, hoje) {
+  const ligasHabilitadas = (config.ligas || []).filter((l) => l.habilitada);
+  if (ligasHabilitadas.length === 0) return { status: 'sem_ligas_habilitadas' };
+
+  const cliente = criarClienteMlbStatsApi();
+  const resultadoPorLiga = [];
+
+  for (const ligaConfig of ligasHabilitadas) {
+    try {
+      const jogos = await cliente.buscarJogosDoDia(ligaConfig.sportId, hoje);
+
+      const ligaId = await db.upsertLiga({
+        esporte: 'beisebol',
+        apiSportsId: ligaConfig.id_interno,
+        nome: ligaConfig.nome,
+        pais: 'EUA',
+        pontosCorridos: true,
+      });
+
+      let gravados = 0;
+      for (const jogo of jogos) {
+        const timeCasaId = await db.upsertTime({
+          esporte: 'beisebol',
+          apiSportsId: jogo.teams.home.team.id,
+          nome: jogo.teams.home.team.name,
+          ligaId,
+        });
+        const timeVisitanteId = await db.upsertTime({
+          esporte: 'beisebol',
+          apiSportsId: jogo.teams.away.team.id,
+          nome: jogo.teams.away.team.name,
+          ligaId,
+        });
+
+        await db.upsertFixture({
+          esporte: 'beisebol',
+          apiSportsId: jogo.gamePk,
+          ligaId,
+          timeCasaId,
+          timeVisitanteId,
+          temporada: new Date(jogo.gameDate).getFullYear(),
+          dataHora: jogo.gameDate,
+          status: jogo.status?.detailedState ?? null,
+        });
+        gravados += 1;
+      }
+
+      resultadoPorLiga.push({ liga: ligaConfig.nome, status: 'ok', jogos_coletados: jogos.length, jogos_gravados: gravados });
+    } catch (erro) {
+      resultadoPorLiga.push({ liga: ligaConfig.nome, status: 'erro', erro: erro.message });
+    }
+  }
+
+  return { status: 'ok', resultado_por_liga: resultadoPorLiga };
 }
 
 /**
  * rodarColetaNoturna()
- * Roda a coleta de TODOS os esportes configurados na whitelist, cada um
- * com sua própria cota. Erro num esporte não afeta os outros.
+ * Versão sem controle de cota (as 3 fontes gratuitas não têm o problema
+ * de temporada bloqueada nem limite apertado da API-Sports). Erro num
+ * esporte não afeta os outros.
  */
-async function rodarColetaNoturna(opcoes = {}) {
+async function rodarColetaNoturna() {
   const inicio = Date.now();
-  const apiKey = opcoes.apiSportsKey || process.env.API_SPORTS_KEY;
-  const margemSeguranca = opcoes.margemSeguranca ?? 10;
   const hoje = new Date().toISOString().slice(0, 10);
-  const temporadaAtual = opcoes.temporada ?? new Date().getFullYear();
-
   const whitelist = carregarWhitelist();
-  const esportes = Object.keys(whitelist).filter((chave) => !chave.startsWith('_'));
 
   const resultadoPorEsporte = {};
 
-  for (const esporte of esportes) {
-    const ligasHabilitadas = (whitelist[esporte].ligas || []).filter((liga) => liga.habilitada);
-    if (ligasHabilitadas.length === 0) continue;
+  try {
+    resultadoPorEsporte.futebol = await coletarFutebol(whitelist.futebol || {}, hoje);
+  } catch (erro) {
+    resultadoPorEsporte.futebol = { status: 'erro', erro: erro.message };
+  }
 
-    try {
-      resultadoPorEsporte[esporte] = await coletarUmEsporte(esporte, ligasHabilitadas, {
-        apiKey,
-        hoje,
-        temporadaAtual,
-        margemSeguranca,
-      });
-    } catch (erro) {
-      resultadoPorEsporte[esporte] = { erro: erro.message };
-    }
+  try {
+    resultadoPorEsporte.basquete = await coletarBasquete(whitelist.basquete || {}, hoje);
+  } catch (erro) {
+    resultadoPorEsporte.basquete = { status: 'erro', erro: erro.message };
+  }
+
+  try {
+    resultadoPorEsporte.beisebol = await coletarBeisebol(whitelist.beisebol || {}, hoje);
+  } catch (erro) {
+    resultadoPorEsporte.beisebol = { status: 'erro', erro: erro.message };
   }
 
   return {
