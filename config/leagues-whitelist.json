@@ -1,32 +1,33 @@
 {
-  "_comentario": "Cada esporte é um PRODUTO SEPARADO na API-Sports, com cota própria de 100 req/dia — não competem entre si. Confirme os api_sports_id certos no endpoint /leagues de cada produto (football/basketball/baseball) antes de rodar em produção; os valores abaixo são os IDs públicos mais comuns, mas podem mudar. ATENÇÃO ESPECIAL: wnba e euroleague (basquete) têm menos documentação pública que os outros — confirme esses dois com mais cuidado.",
+  "_comentario": "Reescrita pra usar 3 fontes gratuitas SEM trava de temporada (a API-Sports free só libera 2022-2024, inútil pra jogos de hoje). football-data.org cobre futebol, balldontlie.io cobre basquete, MLB Stats API cobre beisebol. MLS/Libertadores/Europa League/Euroleague NÃO estão disponíveis nesses planos gratuitos — ficam de fora até decidir pagar algo específico pra elas.",
 
   "futebol": {
+    "provedor": "football-data.org",
+    "indisponiveis_no_free": ["MLS", "Copa Libertadores", "Europa League"],
     "ligas": [
-      { "api_sports_id": 71, "nome": "Brasileirão Série A", "pais": "Brasil", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 39, "nome": "Premier League", "pais": "Inglaterra", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 253, "nome": "MLS", "pais": "EUA", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 13, "nome": "Copa Libertadores", "pais": "América do Sul", "pontos_corridos": false, "habilitada": true },
-      { "api_sports_id": 2, "nome": "Champions League", "pais": "Europa", "pontos_corridos": false, "habilitada": true },
-      { "api_sports_id": 140, "nome": "La Liga", "pais": "Espanha", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 78, "nome": "Bundesliga", "pais": "Alemanha", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 61, "nome": "Ligue 1", "pais": "França", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 135, "nome": "Serie A", "pais": "Itália", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 3, "nome": "Europa League", "pais": "Europa", "pontos_corridos": false, "habilitada": true }
+      { "id_interno": 1, "codigo": "BSA", "nome": "Brasileirão Série A", "pais": "Brasil", "pontos_corridos": true, "habilitada": true },
+      { "id_interno": 2, "codigo": "PL", "nome": "Premier League", "pais": "Inglaterra", "pontos_corridos": true, "habilitada": true },
+      { "id_interno": 3, "codigo": "CL", "nome": "Champions League", "pais": "Europa", "pontos_corridos": false, "habilitada": true },
+      { "id_interno": 4, "codigo": "PD", "nome": "La Liga", "pais": "Espanha", "pontos_corridos": true, "habilitada": true },
+      { "id_interno": 5, "codigo": "BL1", "nome": "Bundesliga", "pais": "Alemanha", "pontos_corridos": true, "habilitada": true },
+      { "id_interno": 6, "codigo": "FL1", "nome": "Ligue 1", "pais": "França", "pontos_corridos": true, "habilitada": true },
+      { "id_interno": 7, "codigo": "SA", "nome": "Serie A", "pais": "Itália", "pontos_corridos": true, "habilitada": true }
     ]
   },
 
   "basquete": {
+    "provedor": "balldontlie.io",
+    "indisponiveis_no_free": ["Euroleague"],
     "ligas": [
-      { "api_sports_id": 12, "nome": "NBA", "pais": "EUA", "pontos_corridos": true, "habilitada": true },
-      { "api_sports_id": 13, "nome": "WNBA", "pais": "EUA", "pontos_corridos": true, "habilitada": true, "_verificar_id": true },
-      { "api_sports_id": 120, "nome": "Euroleague", "pais": "Europa", "pontos_corridos": true, "habilitada": true, "_verificar_id": true }
+      { "id_interno": 1, "path": "nba", "nome": "NBA", "habilitada": true },
+      { "id_interno": 2, "path": "wnba", "nome": "WNBA", "habilitada": true }
     ]
   },
 
   "beisebol": {
+    "provedor": "MLB Stats API",
     "ligas": [
-      { "api_sports_id": 1, "nome": "MLB", "pais": "EUA", "pontos_corridos": true, "habilitada": true }
+      { "id_interno": 1, "sportId": 1, "nome": "MLB", "habilitada": true }
     ]
   }
 }
