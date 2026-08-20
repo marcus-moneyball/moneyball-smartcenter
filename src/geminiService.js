@@ -23,7 +23,9 @@ const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const DEFAULT_MODEL_GROUNDING = process.env.GEMINI_MODEL_GROUNDING || 'gemini-3.5-flash';
 
 const MAX_RETRIES = 4;
-const BASE_DELAY_MS = 800; // 800ms, 1.6s, 3.2s, 6.4s...
+const MAX_RETRIES_429 = 2; // rate limit tem orçamento de tentativas menor — esperar demais estoura o timeout da função na Vercel
+const BASE_DELAY_MS = 800; // erros genéricos (503, etc): 800ms, 1.6s, 3.2s, 6.4s...
+const DELAY_429_MS = 18000; // fixo, não escalona — a janela do free tier é de 1 minuto, então 18s já dá uma chance real sem estourar o timeout de 60s da função
 const RETRYABLE_STATUS = new Set([429, 503]);
 
 function sleep(ms) {
@@ -88,6 +90,7 @@ async function chamarGeminiComRetry({
   }
 
   let ultimoErro = null;
+  let tentativas429 = 0;
 
   for (let tentativa = 0; tentativa <= MAX_RETRIES; tentativa += 1) {
     try {
@@ -101,22 +104,25 @@ async function chamarGeminiComRetry({
     } catch (erro) {
       ultimoErro = erro;
 
+      const status = extrairStatus(erro);
+      const ehRateLimit = status === 429;
       const retentavel = ehErroRetentavel(erro);
       const ultimaTentativa = tentativa === MAX_RETRIES;
+      const rateLimitEsgotado = ehRateLimit && tentativas429 >= MAX_RETRIES_429;
 
-      if (!retentavel || ultimaTentativa) {
+      if (!retentavel || ultimaTentativa || rateLimitEsgotado) {
         throw new Error(
           `Falha ao chamar Gemini API (tentativa ${tentativa + 1}/${MAX_RETRIES + 1}, modelo=${modeloEfetivo}, grounding=${usarGrounding}): ${erro.message}`
         );
       }
 
-      const delayBase = BASE_DELAY_MS * 2 ** tentativa;
-      const jitter = Math.floor(Math.random() * 250);
-      const delay = delayBase + jitter;
+      if (ehRateLimit) tentativas429 += 1;
+
+      const delay = (ehRateLimit ? DELAY_429_MS : BASE_DELAY_MS * 2 ** tentativa) + Math.floor(Math.random() * 250);
 
       // eslint-disable-next-line no-console
       console.warn(
-        `[geminiService] erro retentável (status=${extrairStatus(erro)}), ` +
+        `[geminiService] erro retentável (status=${status}${ehRateLimit ? ', rate limit' : ''}), ` +
           `tentativa ${tentativa + 1}/${MAX_RETRIES + 1}, aguardando ${delay}ms`
       );
 
