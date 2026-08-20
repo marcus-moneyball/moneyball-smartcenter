@@ -19,6 +19,10 @@ const { gerarPalpitePartida } = require('../src/palpiteOrchestrator');
  * Protegido pelo mesmo CRON_SECRET (Authorization: Bearer <valor>) — não é
  * exclusivo de cron, é só reaproveitar o segredo que você já configurou.
  */
+// Vercel mata a função em 10s por padrão — nosso retry de rate limit (429)
+// sozinho pode levar até ~40s. 60s é o teto do plano Hobby.
+module.exports.config = { maxDuration: 60 };
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ sucesso: false, erro: 'Use POST.' });
