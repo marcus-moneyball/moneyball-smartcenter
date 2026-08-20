@@ -161,12 +161,16 @@ def montar_mercados_candidatos(odds, matriz, lambda_casa, lambda_visitante):
 def _montar_item(mercado, odd, probabilidade_estimada, tag):
     probabilidade_implicita = 1 / odd if odd else None
     edge = (probabilidade_estimada - probabilidade_implicita) if probabilidade_implicita is not None else None
+    # "Bet to": a odd onde o edge zera (1 / probabilidade_estimada) — acima
+    # desse valor a aposta deixa de ter valor matemático.
+    bet_to = round(1 / probabilidade_estimada, 3) if probabilidade_estimada and probabilidade_estimada > 0 else None
     return {
         'mercado': mercado,
         'odd': odd,
         'probabilidade_estimada': round(probabilidade_estimada, 4),
         'probabilidade_implicita': round(probabilidade_implicita, 4) if probabilidade_implicita else None,
         'edge': round(edge, 4) if edge is not None else None,
+        'bet_to': bet_to,
         'unidades_recomendadas': unidades_por_edge(edge) if edge is not None else 0,
         'possivel_vies_se_edge_alto': edge is not None and edge > 0.10,
         'tag_correlacao': tag,
