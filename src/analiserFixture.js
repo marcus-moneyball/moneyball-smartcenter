@@ -255,6 +255,15 @@ async function analisarEPublicarFixture(fixtureId, opcoes = {}) {
 
   await db.marcarFixtureAprovado(fixtureId, true);
 
+  try {
+    await db.salvarPalpitesPublicados(fixture, esporte, resultadoAnalise.analise_completa || [], publicacao);
+  } catch (erro) {
+    // Falha ao salvar rastreamento nunca deve derrubar a publicação que já aconteceu —
+    // só loga, o Ghost já tem o post de verdade.
+    // eslint-disable-next-line no-console
+    console.warn('[analiserFixture] falha ao salvar palpites_publicados:', erro.message);
+  }
+
   return {
     sucesso: true,
     etapa: 'concluido',
