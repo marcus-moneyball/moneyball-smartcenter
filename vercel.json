@@ -8,5 +8,10 @@
       "path": "/api/cron/coleta-odds",
       "schedule": "0 5 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/quant/futebol.py": {
+      "maxDuration": 30
+    }
+  }
 }
