@@ -257,6 +257,89 @@ async function inserirOddsApiSnapshots(eventos) {
   }
 }
 
+/**
+ * salvarPalpitesPublicados(fixture, esporte, itens, publicacao)
+ * Grava cada mercado publicado — base pro "5 do dia" e ROI mensal.
+ */
+async function salvarPalpitesPublicados(fixture, esporte, itens, publicacao) {
+  for (const item of itens) {
+    // eslint-disable-next-line no-await-in-loop
+    await query(
+      `INSERT INTO palpites_publicados
+         (fixture_id, esporte, liga, casa, visitante, mercado, aposta_sugerida, odd, bet_to,
+          probabilidade_estimada, probabilidade_implicita, edge, unidades_recomendadas,
+          no_bilhete_final, ghost_post_id, ghost_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        fixture.id ?? null,
+        esporte,
+        fixture.liga_nome ?? fixture.liga ?? null,
+        fixture.time_casa ?? fixture.casa,
+        fixture.time_visitante ?? fixture.visitante,
+        item.mercado ?? null,
+        item.aposta_sugerida ?? null,
+        item.odd ?? null,
+        item.bet_to ?? null,
+        item.probabilidade_estimada ?? null,
+        item.probabilidade_implicita ?? null,
+        item.expected_value ?? item.edge ?? null,
+        item.unidades_recomendadas ?? null,
+        item.no_bilhete_final ?? false,
+        publicacao?.id ?? null,
+        publicacao?.url ?? null,
+      ]
+    );
+  }
+}
+
+/** obterTop5DoDia() — os 5 palpites de maior edge publicados hoje, cada um como aposta simples. */
+async function obterTop5DoDia() {
+  const resultado = await query(
+    `SELECT * FROM palpites_publicados
+     WHERE publicado_em::date = CURRENT_DATE AND edge IS NOT NULL
+     ORDER BY edge DESC
+     LIMIT 5`
+  );
+  return resultado.rows;
+}
+
+/** listarPalpitesPendentes() — palpites sem resultado registrado ainda, pra você marcar. */
+async function listarPalpitesPendentes(diasAtras = 7) {
+  const resultado = await query(
+    `SELECT * FROM palpites_publicados
+     WHERE resultado = 'pendente' AND publicado_em > now() - ($1 || ' days')::interval
+     ORDER BY publicado_em DESC`,
+    [diasAtras]
+  );
+  return resultado.rows;
+}
+
+/** atualizarResultadoPalpite(id, resultado) — 'ganhou' | 'perdeu' | 'push'. */
+async function atualizarResultadoPalpite(id, resultado) {
+  await query(
+    `UPDATE palpites_publicados SET resultado = $2, resultado_atualizado_em = now() WHERE id = $1`,
+    [id, resultado]
+  );
+}
+
+/** obterRoiMensal(ano, mes) — soma unidades ganhas/perdidas do mês, só considerando resultado já registrado. */
+async function obterRoiMensal(ano, mes) {
+  const resultado = await query(
+    `SELECT
+       resultado,
+       COUNT(*) AS quantidade,
+       SUM(unidades_recomendadas) AS unidades_totais,
+       SUM(CASE WHEN resultado = 'ganhou' THEN unidades_recomendadas * (odd - 1) ELSE 0 END) AS unidades_ganhas,
+       SUM(CASE WHEN resultado = 'perdeu' THEN unidades_recomendadas ELSE 0 END) AS unidades_perdidas
+     FROM palpites_publicados
+     WHERE EXTRACT(YEAR FROM publicado_em) = $1 AND EXTRACT(MONTH FROM publicado_em) = $2
+       AND resultado != 'pendente'
+     GROUP BY resultado`,
+    [ano, mes]
+  );
+  return resultado.rows;
+}
+
 module.exports = {
   query,
   upsertLiga,
@@ -271,4 +354,9 @@ module.exports = {
   marcarFixtureAprovado,
   obterFixturePorId,
   inserirOddsApiSnapshots,
+  salvarPalpitesPublicados,
+  obterTop5DoDia,
+  listarPalpitesPendentes,
+  atualizarResultadoPalpite,
+  obterRoiMensal,
 };
