@@ -33,6 +33,8 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto antes ou depois:
     {
       "mercado": "<copiado exatamente de mercados_calculados[i].mercado>",
       "aposta_sugerida": "<string curta, ex: 'Casa -1.5' ou 'Over 2.5 Gols'>",
+      "odd": <copiado de mercados_calculados[i].odd>,
+      "bet_to": <copiado de mercados_calculados[i].bet_to>,
       "probabilidade_estimada": <copiado de mercados_calculados[i].probabilidade_estimada>,
       "probabilidade_implicita": <copiado de mercados_calculados[i].probabilidade_implicita>,
       "expected_value": <copiado de mercados_calculados[i].edge>,
