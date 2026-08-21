@@ -20,7 +20,7 @@ const LEIS_GERAIS = `
 2. Use SEMPRE a busca do Google (grounding) para confirmar odds, estatísticas e contexto atuais — nunca responda com dado da sua memória interna sem confirmar.
 3. Campo que você não conseguiu confirmar via busca real vira "null" — nunca invente, estime ou "arredonde" um número que não achou.
 4. Nunca arredonde ou simplifique uma odd encontrada — reproduza exatamente o valor da fonte.
-5. Busque as estatísticas em TRÊS janelas temporais quando possível: longo prazo (temporada completa/xG acumulado), médio prazo (últimos 10-15 jogos) e curto prazo (últimos 2-3 jogos + fatores imediatos tipo viagem/back-to-back). Se só encontrar uma janela, preencha essa e deixe as outras null — nunca estime uma janela a partir da outra.
+5. Busque a estatística na MELHOR janela disponível (idealmente 10-15 jogos recentes) — só isso, não precisa buscar em múltiplas janelas temporais separadas. Priorize velocidade: 1 boa busca por dado é melhor que 3 buscas incompletas.
 6. Busque ATIVAMENTE por desfalques/lesões recentes (últimas 48h) dos dois times.
 7. Busque ATIVAMENTE a probabilidade implícita em mercados de predição pública (ex: Polymarket) — se não encontrar mercado ativo pra esse jogo específico, "sentimento_mercado" fica null.
 8. Responda SOMENTE com um objeto JSON válido, sem markdown, sem comentários, sem texto antes ou depois, mesmo usando a ferramenta de busca.
@@ -31,7 +31,9 @@ Isso é a ÚNICA interpretação permitida ao Engine 1. Depois de coletar as est
 classifique o roteiro provável do jogo em UMA destas categorias, baseado
 EXCLUSIVAMENTE nos números que você mesmo coletou (nunca em opinião ou viés):
 
-- **dominio_territorial**: um time claramente domina posse/território (Field Tilt muito desbalanceado, PPDA baixo de um lado e alto do outro).
+Baseie-se PRIORITARIAMENTE em xG/xGA (sempre disponíveis) — Field Tilt/PPDA são só reforço quando existirem, nunca bloqueiam a classificação se vierem null.
+
+- **dominio_territorial**: xG e xGA muito desbalanceados entre os times (um ataca muito mais / defende muito melhor). Se tiver Field Tilt/PPDA, reforça a leitura, mas não é obrigatório.
 - **eficiencia_cirurgica**: poucos volumes de criação dos dois lados, mas eficiência alta (xG por chute alto, xG total baixo).
 - **transicao_caos**: PPDA baixo dos dois lados (pressão alta mútua) ou times com estilos de transição rápida.
 - **desgaste_atrito**: sinais de fadiga/viagem/calendário apertado que sugerem jogo decidido tarde.
@@ -61,22 +63,18 @@ const ESPORTES = {
     "cartoes": { "linha": <number|null>, "over": <number|null>, "under": <number|null> }
   },
   "estatisticas": {
-    "xg_casa": <number|null>, "xg_visitante": <number|null>,
-    "xga_casa": <number|null>, "xga_visitante": <number|null>,
-    "field_tilt_casa": <number|null, "% de passes no terço final, longo prazo">, "field_tilt_visitante": <number|null>,
-    "ppda_casa": <number|null, "intensidade de pressão — menor é mais intenso">, "ppda_visitante": <number|null>,
-    "xg_por_chute_casa": <number|null>, "xg_por_chute_visitante": <number|null>,
-    "gols_marcados_real_vs_xg_casa": <number|null, "diferença gols reais - xG, sinal de regressão à média">,
-    "gols_marcados_real_vs_xg_visitante": <number|null>,
-    "forma_recente": { "casa": "<string, últimos 5 resultados>", "visitante": "<string>" },
-    "h2h": "<string, resumo dos confrontos diretos recentes>"
+    "xg_casa": <number, OBRIGATÓRIO — pare e busque até achar>, "xg_visitante": <number, OBRIGATÓRIO>,
+    "xga_casa": <number, OBRIGATÓRIO>, "xga_visitante": <number, OBRIGATÓRIO>,
+    "field_tilt_casa": <number|null, opcional — só preencha se achar na mesma busca do xG, não abra busca extra só pra isso>, "field_tilt_visitante": <number|null>,
+    "ppda_casa": <number|null, opcional, mesmo critério>, "ppda_visitante": <number|null>,
+    "forma_recente": { "casa": "<string|null, opcional>", "visitante": "<string|null>" },
+    "h2h": "<string|null, opcional>"
   },
   "contexto": {
     "resumo_casa": "<string, o que a casa espera do jogo>",
     "resumo_visitante": "<string>",
     "desfalques_casa": ["<string>"],
-    "desfalques_visitante": ["<string>"],
-    "viagem_ou_desgaste": "<string|null, ex: jogou fora há 3 dias, viagem longa>"
+    "desfalques_visitante": ["<string>"]
   },
   "game_script": {
     "roteiro": "<uma de: dominio_territorial | eficiencia_cirurgica | transicao_caos | desgaste_atrito>",
