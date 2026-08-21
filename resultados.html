@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moneyball — Resultados</title>
+<style>
+  :root {
+    --bg: #05070d; --panel: #0d1220; --card: #111827; --border: #1f2937;
+    --accent: #00e676; --accent-dim: #00c853; --text: #e5e7eb; --muted: #6b7280;
+    --erro: #ef4444; --push: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0; padding: 1.25rem; max-width: 780px; margin-inline: auto;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 0.25rem; }
+  h2 { font-size: 1rem; margin: 1.5rem 0 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .subtitulo { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem; }
+  #config {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1rem; margin-bottom: 1rem;
+  }
+  #config label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.3rem; }
+  #config input {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem; font-family: inherit; margin-bottom: 0.6rem;
+  }
+  button {
+    font-family: inherit; font-weight: 700; border: none; border-radius: 8px;
+    padding: 0.55rem 0.9rem; cursor: pointer; font-size: 0.8rem;
+  }
+  .btn-primario { background: var(--accent); color: #000; width: 100%; }
+  .btn-primario:hover { background: var(--accent-dim); }
+  .btn-ganhou { background: rgba(0,230,118,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-perdeu { background: rgba(239,68,68,0.15); color: var(--erro); border: 1px solid var(--erro); }
+  .btn-push { background: rgba(245,158,11,0.15); color: var(--push); border: 1px solid var(--push); }
+
+  .roi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+  .roi-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; text-align: center; }
+  .roi-valor { font-size: 1.2rem; font-weight: 800; }
+  .roi-label { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; }
+  .roi-positivo { color: var(--accent); }
+  .roi-negativo { color: var(--erro); }
+
+  .item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 0.8rem 1rem; margin-bottom: 0.6rem;
+  }
+  .item-titulo { font-weight: 700; font-size: 0.9rem; }
+  .item-detalhe { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+  .item-botoes { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+  .item-botoes button { flex: 1; }
+
+  .vazio { color: var(--muted); text-align: center; padding: 1.5rem 0; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+  <h1>Resultados</h1>
+  <p class="subtitulo"><a href="/index.html" style="color:#00e676;">← Voltar pro painel</a></p>
+  <p class="subtitulo">ROI do mês, top 5 do dia, e marcar resultado dos pendentes.</p>
+
+  <div id="config">
+    <label>URL do backend</label>
+    <input id="backend-url" placeholder="https://seu-projeto.vercel.app">
+    <label>CRON_SECRET</label>
+    <input id="backend-secret" type="password" placeholder="cole aqui">
+    <button class="btn-primario" onclick="carregarTudo()">Carregar</button>
+  </div>
+
+  <h2>ROI do mês</h2>
+  <div id="roi" class="roi-grid"></div>
+
+  <h2>5 do dia</h2>
+  <div id="top5"></div>
+
+  <h2>Pendentes de resultado</h2>
+  <div id="pendentes"></div>
+
+<script>
+  const LS_URL = 'moneyball_backend_url';
+  const LS_SECRET = 'moneyball_backend_secret';
+
+  document.getElementById('backend-url').value = localStorage.getItem(LS_URL) || '';
+  document.getElementById('backend-secret').value = localStorage.getItem(LS_SECRET) || '';
+
+  function config() {
+    const url = document.getElementById('backend-url').value.trim().replace(/\/$/, '');
+    const secret = document.getElementById('backend-secret').value.trim();
+    localStorage.setItem(LS_URL, url);
+    localStorage.setItem(LS_SECRET, secret);
+    return { url, secret };
+  }
+
+  async function chamar(caminho, opcoes = {}) {
+    const { url, secret } = config();
+    const resp = await fetch(`${url}${caminho}`, {
+      ...opcoes,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}`, ...(opcoes.headers || {}) },
+    });
+    return resp.json();
+  }
+
+  async function carregarTudo() {
+    await Promise.all([carregarRoi(), carregarTop5(), carregarPendentes()]);
+  }
+
+  async function carregarRoi() {
+    const div = document.getElementById('roi');
+    div.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      const dados = await chamar('/api/roi-mensal');
+      if (!dados.sucesso) { div.innerHTML = `<p class="vazio">Erro: ${dados.erro}</p>`; return; }
+      const r = dados.resumo;
+      const positivo = (r.roi_percentual ?? 0) >= 0;
+      div.innerHTML = `
+        <div class="roi-card"><div class="roi-valor">${r.unidades_apostadas}u</div><div class="roi-label">Apostado</div></div>
+        <div class="roi-card"><div class="roi-valor ${r.saldo_unidades >= 0 ? 'roi-positivo' : 'roi-negativo'}">${r.saldo_unidades >= 0 ? '+' : ''}${r.saldo_unidades}u</div><div class="roi-label">Saldo</div></div>
+        <div class="roi-card"><div class="roi-valor ${positivo ? 'roi-positivo' : 'roi-negativo'}">${r.roi_percentual !== null ? r.roi_percentual + '%' : '—'}</div><div class="roi-label">ROI</div></div>
+      `;
+    } catch (e) {
+      div.innerHTML = `<p class="vazio">Erro de conexão: ${e.message}</p>`;
+    }
+  }
+
+  async function carregarTop5() {
+    const div = document.getElementById('top5');
+    div.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      const dados = await chamar('/api/5-do-dia');
+      if (!dados.sucesso) { div.innerHTML = `<p class="vazio">Erro: ${dados.erro}</p>`; return; }
+      if (dados.top5.length === 0) { div.innerHTML = '<p class="vazio">Nada publicado hoje ainda.</p>'; return; }
+      div.innerHTML = dados.top5.map((p) => `
+        <div class="item">
+          <div class="item-titulo">${p.casa} x ${p.visitante} — ${p.aposta_sugerida || p.mercado}</div>
+          <div class="item-detalhe">Odd ${p.odd} · Edge ${(p.edge * 100).toFixed(1)}% · Bet to ${p.bet_to ?? '—'} · ${p.unidades_recomendadas}u</div>
+        </div>
+      `).join('') + (dados.multipla_bonus ? `<p class="item-detalhe" style="margin-top:0.5rem;">Múltipla combinada: ${dados.multipla_bonus.odd_combinada}x — ${dados.multipla_bonus.aviso}</p>` : '');
+    } catch (e) {
+      div.innerHTML = `<p class="vazio">Erro de conexão: ${e.message}</p>`;
+    }
+  }
+
+  async function carregarPendentes() {
+    const div = document.getElementById('pendentes');
+    div.innerHTML = '<p class="vazio">Carregando...</p>';
+    try {
+      const dados = await chamar('/api/registrar-resultado');
+      if (!dados.sucesso) { div.innerHTML = `<p class="vazio">Erro: ${dados.erro}</p>`; return; }
+      if (dados.pendentes.length === 0) { div.innerHTML = '<p class="vazio">Nada pendente — tudo registrado!</p>'; return; }
+      div.innerHTML = dados.pendentes.map((p) => `
+        <div class="item" id="pendente-${p.id}">
+          <div class="item-titulo">${p.casa} x ${p.visitante} — ${p.aposta_sugerida || p.mercado}</div>
+          <div class="item-detalhe">Odd ${p.odd} · ${p.unidades_recomendadas}u · publicado em ${new Date(p.publicado_em).toLocaleDateString('pt-BR')}</div>
+          <div class="item-botoes">
+            <button class="btn-ganhou" onclick="marcar(${p.id}, 'ganhou')">✅ Ganhou</button>
+            <button class="btn-perdeu" onclick="marcar(${p.id}, 'perdeu')">❌ Perdeu</button>
+            <button class="btn-push" onclick="marcar(${p.id}, 'push')">➖ Push</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      div.innerHTML = `<p class="vazio">Erro de conexão: ${e.message}</p>`;
+    }
+  }
+
+  async function marcar(id, resultado) {
+    const elemento = document.getElementById(`pendente-${id}`);
+    elemento.style.opacity = '0.5';
+    try {
+      const dados = await chamar('/api/registrar-resultado', { method: 'POST', body: JSON.stringify({ id, resultado }) });
+      if (!dados.sucesso) { alert(`Erro: ${dados.erro}`); elemento.style.opacity = '1'; return; }
+      elemento.remove();
+      carregarRoi(); // atualiza o ROI já refletindo o novo resultado
+    } catch (e) {
+      alert(`Erro de conexão: ${e.message}`);
+      elemento.style.opacity = '1';
+    }
+  }
+</script>
+</body>
+</html>
