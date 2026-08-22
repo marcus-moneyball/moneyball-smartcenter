@@ -148,4 +148,61 @@ ${ordenada.length === 0 ? '<p>Nenhum mercado avaliado.</p>' : ordenada.map(monta
   return { id: post.id, url: post.url };
 }
 
-module.exports = { publicarRelatorioNoGhost, publicarPalpiteNoGhost };
+const ROTULO_GAME_SCRIPT_TECNICO = {
+  dominio_territorial: 'Domínio Territorial',
+  eficiencia_cirurgica: 'Eficiência Cirúrgica',
+  transicao_caos: 'Transição / Caos',
+  desgaste_atrito: 'Desgaste / Atrito',
+};
+
+/**
+ * publicarPickRadarNoGhost(pick, fixture)
+ *
+ * Publica UM pick vindo do Moneyball Radar (Scanner) — schema diferente do
+ * Engine1/2 (montarCardMercado acima não serve aqui: lá é um array de
+ * mercados de UM jogo já analisado pelo motor quant; aqui é um pick único,
+ * já com game script em duas camadas — técnica e leitura humana).
+ *
+ * @param {Object} pick - um item de picks_by_sport[esporte] do Radar v2.1
+ * @param {Object} fixture - resultado de radarMatcher.buscarFixtureParaPick (encontrado:true)
+ * @returns {Promise<{ id: string, url: string }>}
+ */
+async function publicarPickRadarNoGhost(pick, fixture, opcoes = {}) {
+  const api = criarClienteGhost();
+
+  const rotuloTecnico = pick.game_script_tecnico ? ROTULO_GAME_SCRIPT_TECNICO[pick.game_script_tecnico] || pick.game_script_tecnico : null;
+  const edgeFmt = pick.edge_percentage != null ? `${Number(pick.edge_percentage) >= 0 ? '+' : ''}${pick.edge_percentage}%` : '—';
+  const corEdge = Number(pick.edge_percentage) >= 0 ? '#10b981' : '#ef4444';
+
+  const titulo = `${fixture.timeCasa} x ${fixture.timeVisitante}${pick.league ? ` — ${pick.league}` : ''}`;
+
+  const html = `
+<div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:10px 0;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+    <strong>${escaparHtml(pick.market)}</strong>
+    <span style="font-size:12px;font-weight:700;color:#fff;background:${corEdge};padding:3px 8px;border-radius:999px;">EV ${edgeFmt}</span>
+  </div>
+  <div style="font-size:20px;font-weight:800;margin-top:6px;">${escaparHtml(pick.selection)}</div>
+  <div style="margin-top:4px;font-size:13px;color:#6b7280;">
+    Odd ${escaparHtml(pick.current_odds)} · Bet to ${escaparHtml(pick.bet_to ?? '—')} · ${escaparHtml(pick.units ?? 0)}u
+    ${pick.possivel_vies_se_edge_alto ? ' · <span style="color:#f59e0b;">⚠ Edge alto — checar viés</span>' : ''}
+  </div>
+  ${pick.game_script_leitura ? `<p style="font-size:13px;color:#4b5563;margin-top:10px;"><strong>Leitura do jogo:</strong> ${escaparHtml(pick.game_script_leitura)}</p>` : ''}
+  ${rotuloTecnico ? `<p style="font-size:11px;color:#9ca3af;margin-top:4px;">Game Script técnico: ${escaparHtml(rotuloTecnico)}</p>` : ''}
+</div>
+<p style="font-size:11px;color:#9ca3af;margin-top:16px;">Análise estatística gerada por IA (Moneyball Radar) — não é garantia de resultado.</p>`.trim();
+
+  const post = await api.posts.add(
+    {
+      title: titulo,
+      html,
+      status: opcoes.status || process.env.GHOST_POST_STATUS || 'draft',
+      tags: opcoes.tags || [pick.esporte, 'radar'].filter(Boolean),
+    },
+    { source: 'html' }
+  );
+
+  return { id: post.id, url: post.url };
+}
+
+module.exports = { publicarRelatorioNoGhost, publicarPalpiteNoGhost, publicarPickRadarNoGhost };
