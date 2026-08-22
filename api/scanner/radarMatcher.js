@@ -1,0 +1,128 @@
+'use strict';
+
+const { query } = require('./db');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * radarMatcher — casa cada pick do JSON do Moneyball Radar (v2.1, gerado no
+ * chat/Gemini) com um fixture real já coletado pelo cron no banco.
+ *
+ * Responsabilidade única: dado um pick { esporte, match, league }, achar o
+ * fixture correspondente (ou null). NUNCA cria fixture, NUNCA busca odds/stat
+ * externa — isso já existe em coletaNoturna.js/coletaOddsApi.js. Se o cron
+ * ainda não coletou (ou a liga não está na whitelist), o pick fica sem match
+ * e quem decide o que fazer com isso é o endpoint que chama este módulo.
+ */
+
+function normalizarNomeTime(nome) {
+  return String(nome || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .replace(/\b(fc|cf|sc|ac|afc|cfc|esporte clube|clube de regatas|futebol clube)\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+/** "Time A x Time B" ou "Time A vs Time B" → { casa, visitante } */
+function separarConfronto(match) {
+  const partes = String(match || '').split(/\s+(?:x|vs\.?)\s+/i);
+  if (partes.length !== 2) return null;
+  return { casa: partes[0].trim(), visitante: partes[1].trim() };
+}
+
+function carregarWhitelist() {
+  const caminho = path.join(process.cwd(), 'config', 'leagues-whitelist.json');
+  return JSON.parse(fs.readFileSync(caminho, 'utf-8'));
+}
+
+/**
+ * ligaEstaNaWhitelist(esporte, nomeLiga)
+ * Diferencia "liga fora da cobertura gratuita" (nunca vai casar, não adianta
+ * esperar o cron) de "liga coberta, só não coletou ainda" (esperar o cron
+ * resolve). Comparação por nome é aproximada de propósito — o Radar escreve
+ * o nome da liga livremente, não pelo código interno (BSA, PL, etc).
+ */
+function ligaEstaNaWhitelist(esporte, nomeLiga) {
+  const whitelist = carregarWhitelist();
+  const config = whitelist[esporte];
+  if (!config) return false;
+
+  const alvo = normalizarNomeTime(nomeLiga);
+  if (!alvo) return true; // sem nome de liga informado — não descarta por isso, deixa o match por time decidir
+
+  return (config.ligas || []).some((l) => normalizarNomeTime(l.nome) === alvo || alvo.includes(normalizarNomeTime(l.nome)));
+}
+
+/**
+ * buscarFixtureParaPick({ esporte, match, league })
+ *
+ * Estratégia: busca fixtures do esporte numa janela de -1 a +4 dias (jogos
+ * atrasados em atualizar status ainda contam; jogos futuros são o caso comum),
+ * compara nomes normalizados dos dois times. Match exato primeiro, depois
+ * match por inclusão (nomes de provedores diferentes abreviam diferente —
+ * ex: "Manchester City" vs "Man City").
+ *
+ * @returns {Promise<Object|null>} fixture (mesmo shape de db.obterFixturePorId) ou null
+ */
+async function buscarFixtureParaPick({ esporte, match, league }) {
+  const confronto = separarConfronto(match);
+  if (!confronto) return { encontrado: false, motivo: `Não consegui separar "${match}" em casa x visitante.` };
+
+  const casaAlvo = normalizarNomeTime(confronto.casa);
+  const visitanteAlvo = normalizarNomeTime(confronto.visitante);
+
+  const resultado = await query(
+    `SELECT f.id, f.data_hora, f.status,
+            l.nome AS liga_nome,
+            tc.nome AS time_casa, tv.nome AS time_visitante
+     FROM fixtures f
+     JOIN leagues l ON l.id = f.liga_id
+     JOIN teams tc ON tc.id = f.time_casa_id
+     JOIN teams tv ON tv.id = f.time_visitante_id
+     WHERE f.esporte = $1
+       AND f.data_hora BETWEEN now() - interval '1 day' AND now() + interval '4 days'`,
+    [esporte]
+  );
+
+  const candidatos = resultado.rows.map((linha) => ({
+    ...linha,
+    casaNorm: normalizarNomeTime(linha.time_casa),
+    visitanteNorm: normalizarNomeTime(linha.time_visitante),
+  }));
+
+  // Passo 1: match exato dos dois lados.
+  let achado = candidatos.find((c) => c.casaNorm === casaAlvo && c.visitanteNorm === visitanteAlvo);
+
+  // Passo 2: match por inclusão (nomes abreviados/diferentes entre provedores).
+  if (!achado) {
+    achado = candidatos.find(
+      (c) =>
+        (c.casaNorm.includes(casaAlvo) || casaAlvo.includes(c.casaNorm)) &&
+        (c.visitanteNorm.includes(visitanteAlvo) || visitanteAlvo.includes(c.visitanteNorm))
+    );
+  }
+
+  if (!achado) {
+    const naWhitelist = ligaEstaNaWhitelist(esporte, league);
+    return {
+      encontrado: false,
+      motivo: naWhitelist
+        ? 'Ainda não coletado pelo cron — tente novamente após a próxima rodada de coleta (06h/madrugada).'
+        : `Liga "${league}" fora da cobertura gratuita atual (${esporte}) — não vai casar mesmo esperando o cron.`,
+    };
+  }
+
+  return {
+    encontrado: true,
+    fixtureId: achado.id,
+    ligaNome: achado.liga_nome,
+    timeCasa: achado.time_casa,
+    timeVisitante: achado.time_visitante,
+    dataHora: achado.data_hora,
+    status: achado.status,
+  };
+}
+
+module.exports = { buscarFixtureParaPick, normalizarNomeTime, separarConfronto };
