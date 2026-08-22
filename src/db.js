@@ -340,6 +340,50 @@ async function obterRoiMensal(ano, mes) {
   return resultado.rows;
 }
 
+/**
+ * salvarPickRadarPublicado(pick, fixture, publicacao)
+ *
+ * Grava um pick vindo do Moneyball Radar (Scanner) em palpites_publicados —
+ * mesma tabela que o fluxo Engine1/2 usa, só que os campos chegam com nomes
+ * diferentes (schema do Radar v2.1, não o schema do Engine 2). Faz a
+ * tradução aqui pra não espalhar esse mapeamento pelo endpoint.
+ *
+ * probabilidade_implicita/estimada são DERIVADAS do que o Radar já calculou
+ * (odd decimal + edge_percentage) — nunca inventadas de novo aqui.
+ */
+async function salvarPickRadarPublicado(pick, fixture, publicacao) {
+  const odd = Number(pick.current_odds);
+  const probabilidadeImplicita = odd > 0 ? 1 / odd : null;
+  const edge = pick.edge_percentage != null ? Number(pick.edge_percentage) / 100 : null;
+  const probabilidadeEstimada = probabilidadeImplicita != null && edge != null ? probabilidadeImplicita + edge : null;
+
+  await query(
+    `INSERT INTO palpites_publicados
+       (fixture_id, esporte, liga, casa, visitante, mercado, aposta_sugerida, odd, bet_to,
+        probabilidade_estimada, probabilidade_implicita, edge, unidades_recomendadas,
+        no_bilhete_final, ghost_post_id, ghost_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+    [
+      fixture?.fixtureId ?? fixture?.id ?? null,
+      pick.esporte,
+      pick.league ?? null,
+      fixture?.timeCasa ?? null,
+      fixture?.timeVisitante ?? null,
+      pick.market ?? null,
+      pick.selection ?? null,
+      odd || null,
+      pick.bet_to ?? null,
+      probabilidadeEstimada,
+      probabilidadeImplicita,
+      edge,
+      pick.units ?? null,
+      false,
+      publicacao?.id ?? null,
+      publicacao?.url ?? null,
+    ]
+  );
+}
+
 module.exports = {
   query,
   upsertLiga,
@@ -355,6 +399,7 @@ module.exports = {
   obterFixturePorId,
   inserirOddsApiSnapshots,
   salvarPalpitesPublicados,
+  salvarPickRadarPublicado,
   obterTop5DoDia,
   listarPalpitesPendentes,
   atualizarResultadoPalpite,
