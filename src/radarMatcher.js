@@ -11,8 +11,8 @@ const { query } = require('./db');
 const whitelist = require('../config/leagues-whitelist.json');
 
 /**
- * radarMatcher — casa cada pick do JSON do Moneyball Radar (v2.1, gerado no
- * chat/Gemini) com um fixture real já coletado pelo cron no banco.
+ * radarMatcher — casa cada pick do JSON do Moneyball Radar (v2.1/v3.0, gerado
+ * no chat/Gemini) com um fixture real já coletado pelo cron no banco.
  *
  * Responsabilidade única: dado um pick { esporte, match, league }, achar o
  * fixture correspondente (ou null). NUNCA cria fixture, NUNCA busca odds/stat
@@ -60,9 +60,17 @@ function ligaEstaNaWhitelist(esporte, nomeLiga) {
  *
  * Estratégia: busca fixtures do esporte numa janela de -1 a +4 dias (jogos
  * atrasados em atualizar status ainda contam; jogos futuros são o caso comum),
- * compara nomes normalizados dos dois times. Match exato primeiro, depois
- * match por inclusão (nomes de provedores diferentes abreviam diferente —
- * ex: "Manchester City" vs "Man City").
+ * compara nomes normalizados dos dois times.
+ *
+ *   Passo 1 — match exato, mesma ordem (casa=casa, visitante=visitante).
+ *   Passo 2 — match por inclusão, mesma ordem (nomes abreviados entre
+ *             provedores — ex: "Manchester City" vs "Man City").
+ *   Passo 3 — match exato OU por inclusão, ORDEM INVERTIDA (casa do pick
+ *             bate com visitante do fixture e vice-versa). Existe porque o
+ *             Radar lê a ordem que o print mostrou, e muitas casas de
+ *             apostas/prints listam o visitante primeiro (ou "Away @ Home") —
+ *             sem isso, um jogo já coletado no banco fica preso pra sempre
+ *             no fallback "ainda não coletado pelo cron".
  *
  * @returns {Promise<Object|null>} fixture (mesmo shape de db.obterFixturePorId) ou null
  */
@@ -92,16 +100,29 @@ async function buscarFixtureParaPick({ esporte, match, league }) {
     visitanteNorm: normalizarNomeTime(linha.time_visitante),
   }));
 
-  // Passo 1: match exato dos dois lados.
+  // Passo 1: match exato dos dois lados, mesma ordem.
   let achado = candidatos.find((c) => c.casaNorm === casaAlvo && c.visitanteNorm === visitanteAlvo);
+  let ordemInvertida = false;
 
-  // Passo 2: match por inclusão (nomes abreviados/diferentes entre provedores).
+  // Passo 2: match por inclusão, mesma ordem (nomes abreviados/diferentes entre provedores).
   if (!achado) {
     achado = candidatos.find(
       (c) =>
         (c.casaNorm.includes(casaAlvo) || casaAlvo.includes(c.casaNorm)) &&
         (c.visitanteNorm.includes(visitanteAlvo) || visitanteAlvo.includes(c.visitanteNorm))
     );
+  }
+
+  // Passo 3: mesma lógica dos passos 1+2, mas com casa/visitante trocados —
+  // cobre picks onde o print listou "Visitante x Casa".
+  if (!achado) {
+    achado = candidatos.find(
+      (c) =>
+        (c.casaNorm === visitanteAlvo && c.visitanteNorm === casaAlvo) ||
+        ((c.casaNorm.includes(visitanteAlvo) || visitanteAlvo.includes(c.casaNorm)) &&
+          (c.visitanteNorm.includes(casaAlvo) || casaAlvo.includes(c.visitanteNorm)))
+    );
+    if (achado) ordemInvertida = true;
   }
 
   if (!achado) {
@@ -122,6 +143,7 @@ async function buscarFixtureParaPick({ esporte, match, league }) {
     timeVisitante: achado.time_visitante,
     dataHora: achado.data_hora,
     status: achado.status,
+    ordemInvertidaNoPick: ordemInvertida, // true = o pick listou visitante x casa
   };
 }
 
