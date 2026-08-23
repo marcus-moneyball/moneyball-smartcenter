@@ -107,6 +107,21 @@ function montarCardMercado(item) {
 </div>`.trim();
 }
 
+/** Monta o bloco HTML de UM jogo (título + resumo técnico + cards) — usado tanto no post único quanto no post em lote. */
+function montarBlocoJogo(resultado) {
+  const { casa, visitante, liga, resumo_tecnico: resumoTecnico, analise_completa: analiseCompleta = [] } = resultado;
+
+  const ordenada = [...analiseCompleta].sort(
+    (a, b) => (b.expected_value ?? -Infinity) - (a.expected_value ?? -Infinity)
+  );
+
+  return `
+<h2>${escaparHtml(casa)} x ${escaparHtml(visitante)}${liga ? ` — ${escaparHtml(liga)}` : ''}</h2>
+<p style="font-style:italic;color:#4b5563;">${escaparHtml(resumoTecnico || '')}</p>
+${ordenada.length === 0 ? '<p>Nenhum mercado avaliado.</p>' : ordenada.map(montarCardMercado).join('\n')}
+`.trim();
+}
+
 /**
  * publicarPalpiteNoGhost(resultado)
  *
@@ -122,16 +137,11 @@ async function publicarPalpiteNoGhost(resultado, opcoes = {}) {
   }
 
   const api = criarClienteGhost();
-  const { casa, visitante, liga, esporte, resumo_tecnico: resumoTecnico, analise_completa: analiseCompleta = [] } = resultado;
-
-  const ordenada = [...analiseCompleta].sort(
-    (a, b) => (b.expected_value ?? -Infinity) - (a.expected_value ?? -Infinity)
-  );
+  const { casa, visitante, liga, esporte } = resultado;
 
   const titulo = `${casa} x ${visitante}${liga ? ` — ${liga}` : ''}`;
   const html = `
-<p style="font-style:italic;color:#4b5563;">${escaparHtml(resumoTecnico || '')}</p>
-${ordenada.length === 0 ? '<p>Nenhum mercado avaliado.</p>' : ordenada.map(montarCardMercado).join('\n')}
+${montarBlocoJogo(resultado)}
 <p style="font-size:11px;color:#9ca3af;margin-top:16px;">Análise estatística gerada por IA — não é garantia de resultado.</p>
 `.trim();
 
@@ -148,6 +158,58 @@ ${ordenada.length === 0 ? '<p>Nenhum mercado avaliado.</p>' : ordenada.map(monta
   return { id: post.id, url: post.url };
 }
 
+/**
+ * publicarRodadaNoGhost(resultados)
+ *
+ * Publica VÁRIOS jogos (saída de gerarPalpitePartida, um por jogo já
+ * casado pelo radarMatcher) num ÚNICO post no Ghost — um bloco <h2> por
+ * jogo, na ordem recebida. Existe pra não gastar 1 chamada de publish por
+ * jogo quando a rodada inteira sai de uma vez (ex: os 4-6 picks do Radar).
+ *
+ * Resultados com sucesso:false são pulados (não travam a publicação dos
+ * outros) e contados em "ignorados" no retorno, pra o chamador saber que
+ * algum jogo ficou de fora sem precisar abrir o post pra descobrir.
+ *
+ * @param {Object[]} resultados - array de objetos, cada um saída de gerarPalpitePartida
+ * @param {Object} [opcoes]
+ * @param {string} [opcoes.titulo] - default: "Rodada — <data de hoje>"
+ * @returns {Promise<{ id: string, url: string, publicados: number, ignorados: number }>}
+ */
+async function publicarRodadaNoGhost(resultados, opcoes = {}) {
+  if (!Array.isArray(resultados) || resultados.length === 0) {
+    throw new Error('publicarRodadaNoGhost precisa de um array não vazio de resultados.');
+  }
+
+  const api = criarClienteGhost();
+
+  const validos = resultados.filter((r) => r?.sucesso);
+  const ignorados = resultados.length - validos.length;
+
+  if (validos.length === 0) {
+    throw new Error('Nenhum resultado com sucesso:true pra publicar (todos os jogos vieram com erro).');
+  }
+
+  const esportesUnicos = [...new Set(validos.map((r) => r.esporte).filter(Boolean))];
+  const tituloPadrao = `Rodada — ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+
+  const html = `
+${validos.map(montarBlocoJogo).join('\n<hr>\n')}
+<p style="font-size:11px;color:#9ca3af;margin-top:16px;">Análise estatística gerada por IA — não é garantia de resultado.</p>
+`.trim();
+
+  const post = await api.posts.add(
+    {
+      title: opcoes.titulo || tituloPadrao,
+      html,
+      status: opcoes.status || process.env.GHOST_POST_STATUS || 'draft',
+      tags: opcoes.tags || [...esportesUnicos, 'rodada', 'palpite'],
+    },
+    { source: 'html' }
+  );
+
+  return { id: post.id, url: post.url, publicados: validos.length, ignorados };
+}
+
 const ROTULO_GAME_SCRIPT_TECNICO = {
   dominio_territorial: 'Domínio Territorial',
   eficiencia_cirurgica: 'Eficiência Cirúrgica',
@@ -158,14 +220,15 @@ const ROTULO_GAME_SCRIPT_TECNICO = {
 /**
  * publicarPickRadarNoGhost(pick, fixture)
  *
- * Publica UM pick vindo do Moneyball Radar (Scanner) — schema diferente do
- * Engine1/2 (montarCardMercado acima não serve aqui: lá é um array de
- * mercados de UM jogo já analisado pelo motor quant; aqui é um pick único,
- * já com game script em duas camadas — técnica e leitura humana).
- *
- * @param {Object} pick - um item de picks_by_sport[esporte] do Radar v2.1
- * @param {Object} fixture - resultado de radarMatcher.buscarFixtureParaPick (encontrado:true)
- * @returns {Promise<{ id: string, url: string }>}
+ * ⚠️ DEPRECATED — schema do Radar v2.1 (pick.market/selection/current_odds/
+ * edge_percentage/bet_to/units/game_script_tecnico). O Radar v3.0 não
+ * calcula mais esses campos (viram undefined). O caminho certo pro pick do
+ * Radar v3.0, depois de casado pelo radarMatcher, é rodar
+ * gerarPalpitePartida({ esporte, casa: fixture.timeCasa, visitante:
+ * fixture.timeVisitante, liga: fixture.ligaNome }) e publicar o retorno
+ * disso com publicarPalpiteNoGhost (1 jogo) ou publicarRodadaNoGhost
+ * (vários jogos num post só). Mantida só pra não quebrar import de código
+ * antigo — não chamar em fluxo novo.
  */
 async function publicarPickRadarNoGhost(pick, fixture, opcoes = {}) {
   const api = criarClienteGhost();
@@ -205,4 +268,9 @@ async function publicarPickRadarNoGhost(pick, fixture, opcoes = {}) {
   return { id: post.id, url: post.url };
 }
 
-module.exports = { publicarRelatorioNoGhost, publicarPalpiteNoGhost, publicarPickRadarNoGhost };
+module.exports = {
+  publicarRelatorioNoGhost,
+  publicarPalpiteNoGhost,
+  publicarRodadaNoGhost,
+  publicarPickRadarNoGhost,
+};
