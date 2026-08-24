@@ -8,7 +8,7 @@ const { montarSystemPromptEngine2Narrador } = require('./systemPromptEngine2Narr
 const { chamarGeminiComRetry } = require('./geminiService');
 const { chamarGroqComRetry } = require('./groqService');
 const { MODULES } = require('./sportModules');
-const { publicarPalpiteNoGhost } = require('./ghostService');
+const { publicarPalpiteNoGhost } = require('../api/ghostService');
 
 function mapearEsporte(fixture) {
   return fixture.esporte;
