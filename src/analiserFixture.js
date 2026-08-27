@@ -9,32 +9,14 @@ const { chamarGeminiComRetry } = require('./geminiService');
 const { chamarGroqComRetry } = require('./groqService');
 const { MODULES } = require('./sportModules');
 const { publicarPalpiteNoGhost } = require('../api/ghostService');
+const { chamarMotorQuant } = require('./motorQuantBridge');
 
 function mapearEsporte(fixture) {
   return fixture.esporte;
 }
 
-function baseUrlBackend() {
-  return process.env.QUANT_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-}
-
 async function chamarMotorQuantFutebol(payload) {
-  const baseUrl = baseUrlBackend();
-  if (!baseUrl) {
-    throw new Error('Não foi possível determinar a URL do backend (configure QUANT_BASE_URL nas env vars).');
-  }
-
-  const resposta = await fetch(`${baseUrl}/api/quant/futebol`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
-    body: JSON.stringify(payload),
-  });
-
-  const dados = await resposta.json();
-  if (!resposta.ok || !dados.sucesso) {
-    throw new Error(dados.erro || `Motor quant retornou HTTP ${resposta.status}`);
-  }
-  return dados;
+  return chamarMotorQuant('futebol', payload);
 }
 
 /**
