@@ -4,6 +4,7 @@ const { montarSystemPromptEngine1 } = require('./systemPromptEngine1');
 const { montarSystemPromptEngine2Narrador } = require('./systemPromptEngine2Narrador');
 const { chamarGeminiComRetry } = require('./geminiService');
 const { chamarGroqComRetry } = require('./groqService');
+const { chamarMotorQuant } = require('./motorQuantBridge');
 
 /**
  * analiserPickRadar.js
@@ -16,8 +17,12 @@ const { chamarGroqComRetry } = require('./groqService');
  *   Gemini (Engine 1) investiga — usa o que o OCR já capturou como PONTO DE
  *     PARTIDA, confirma/completa via busca real, faz a leitura de
  *     correlações/game script.
- *   Python (motor quant) calcula — probabilidade real via distribuição
- *     estatística (nunca a IA "achando" o número).
+ *   Moneyball Pro (motor quant) calcula — probabilidade real via distribuição
+ *     estatística (nunca a IA "achando" o número). Ver motorQuantBridge.js --
+ *     desde 2026 isso deixou de ser um motor Python local (api/quant/) e
+ *     virou chamada HTTP pro Moneyball Pro, que é o motor de cálculo único
+ *     do produto (evita ter duas implementações de Poisson/EV/Kelly
+ *     divergindo com o tempo).
  *   Groq (Engine 2 Narrador) escreve — só texto em cima dos números prontos.
  *
  * Diferença do analiserFixture.js: lá o Engine 1 parte do zero (só
@@ -26,8 +31,9 @@ const { chamarGroqComRetry } = require('./groqService');
  * já exige isso), mas não começa cego.
  */
 
-// Esportes cujo motor quant em Python já existe. O que não está aqui cai
-// fora com erro explícito — nunca finge que rodou um cálculo que não existe.
+// Esportes cujo motor quant já existe (agora no Moneyball Pro, ver
+// motorQuantBridge.js). O que não está aqui cai fora com erro explícito --
+// nunca finge que rodou um cálculo que não existe.
 const ROTA_QUANT_POR_ESPORTE = {
   futebol: 'futebol',
   beisebol: 'beisebol',
@@ -44,29 +50,6 @@ function chaveEngine1(pickBruto) {
     return liga.includes('wnba') ? 'wnba' : 'basquete';
   }
   return esporte;
-}
-
-function baseUrlBackend() {
-  return process.env.QUANT_BASE_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
-}
-
-async function chamarMotorQuant(rota, payload) {
-  const baseUrl = baseUrlBackend();
-  if (!baseUrl) {
-    throw new Error('Não foi possível determinar a URL do backend (configure QUANT_BASE_URL nas env vars).');
-  }
-
-  const resposta = await fetch(`${baseUrl}/api/quant/${rota}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
-    body: JSON.stringify(payload),
-  });
-
-  const dados = await resposta.json();
-  if (!resposta.ok || !dados.sucesso) {
-    throw new Error(dados.erro || `Motor quant (${rota}) retornou HTTP ${resposta.status}`);
-  }
-  return dados;
 }
 
 /**
