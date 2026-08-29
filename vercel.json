@@ -9,6 +9,11 @@
       "schedule": "0 5 * * *"
     }
   ],
+  "functions": {
+    "api/quant/futebol.py": { "maxDuration": 30 },
+    "api/quant/basquete.py": { "maxDuration": 30 },
+    "api/quant/beisebol.py": { "maxDuration": 30 }
+  },
   "rewrites": [
     { "source": "/api/5-do-dia", "destination": "/api/index" },
     { "source": "/api/lista-do-dia", "destination": "/api/index" },
