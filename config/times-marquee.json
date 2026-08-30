@@ -1,8 +1,0 @@
-{
-  "_comentario": "Times cujo envolvimento aumenta o score de hype de um jogo. Edite livremente — nomes precisam bater com o que a API-Sports retorna em teams.home.name/teams.away.name.",
-  "times_grandes": {
-    "71": ["Flamengo", "Palmeiras", "Corinthians", "São Paulo", "Fluminense", "Vasco da Gama", "Grêmio", "Internacional", "Atlético-MG", "Cruzeiro", "Santos", "Botafogo"],
-    "39": ["Manchester City", "Manchester United", "Liverpool", "Arsenal", "Chelsea", "Tottenham"],
-    "253": ["Inter Miami", "LA Galaxy", "LAFC", "Seattle Sounders FC"]
-  }
-}
