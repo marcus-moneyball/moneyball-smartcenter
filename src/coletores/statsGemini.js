@@ -1,6 +1,6 @@
 'use strict';
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 /**
  * Réplica, no SmartCenter, da técnica MIE1 do Pro (ver mie1_gemini.py):
@@ -34,7 +34,7 @@ function getClienteGemini() {
   if (clienteGemini) return clienteGemini;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  clienteGemini = new GoogleGenerativeAI(apiKey);
+  clienteGemini = new GoogleGenAI({ apiKey });
   return clienteGemini;
 }
 
@@ -67,13 +67,16 @@ Regras:
 - Se não encontrar dado confiável para NENHUM dos campos, retorne null no lugar do JSON inteiro.`;
 
   try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      tools: [{ googleSearch: {} }],
+    const resultado = await genAI.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents: prompt,
+      config: {
+        temperature: 0,
+        tools: [{ googleSearch: {} }],
+      },
     });
 
-    const resultado = await model.generateContent(prompt);
-    const texto = resultado.response.text().trim().replace(/^```json\s*|\s*```$/g, '');
+    const texto = resultado.text.trim().replace(/^```json\s*|\s*```$/g, '');
     const json = JSON.parse(texto);
 
     if (!json || campos.every((c) => json[c] == null)) return null;
