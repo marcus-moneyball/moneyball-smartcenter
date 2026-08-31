@@ -28,7 +28,7 @@ const { buscarTips } = require('./coletores/tips');
  *   falha   -> { sucesso: false, id_partida, etapa, erros }
  */
 async function processarPartidaRadar(payload) {
-  const { evento, cotacoes_odds_api: odds, metricas_sports_api: stats } = payload;
+  const { evento, cotacoes_odds_api_bruto: odds, metricas_sports_api: stats } = payload;
   const idPartida = evento.id_partida;
 
   try {
