@@ -24,14 +24,13 @@ const ESPORTES_COBERTOS = ['futebol', 'basquete']; // beisebol fica de fora até
 
 async function coletorReal() {
   const payloads = [];
-  const falhas = [];
 
   for (const esporte of ESPORTES_COBERTOS) {
     let eventos;
     try {
       eventos = await buscarOddsPorEsporte(esporte);
     } catch (erro) {
-      falhas.push(`Falha ao buscar odds de ${esporte}: ${erro.message}`);
+      console.warn(`[COLETOR REAL] Falha ao buscar odds de ${esporte}: ${erro.message}`);
       continue;
     }
 
@@ -44,7 +43,7 @@ async function coletorReal() {
       try {
         stats = await buscarStatsPorEsporte(esporte, { timeA, timeB });
       } catch (erro) {
-        falhas.push(`Partida ${idPartida}: falha ao buscar stats (${erro.message}) -- seguindo sem stats.`);
+        console.warn(`[COLETOR REAL] Partida ${idPartida}: falha ao buscar stats (${erro.message}) -- seguindo sem stats.`);
       }
 
       payloads.push({
@@ -66,7 +65,10 @@ async function coletorReal() {
     }
   }
 
-  return { payloads, falhas };
+  // Contrato exigido por coletaRodada.js: o coletor devolve o array direto.
+  // As falhas de validação estrutural por item são calculadas lá dentro,
+  // não aqui.
+  return payloads;
 }
 
 module.exports = { coletorReal };
