@@ -2,6 +2,7 @@
 
 const { buscarOddsPorEsporte } = require('./oddsApi');
 const { buscarStatsPorEsporte } = require('./sportsApi');
+const { normalizarOdds } = require('./normalizarOdds');
 
 /**
  * Substitui coletorPlaceholder.js. Busca eventos+odds na The Odds API para
@@ -15,7 +16,8 @@ const { buscarStatsPorEsporte } = require('./sportsApi');
  * filtroQualidade.js / radarProcessor.js):
  *   {
  *     evento: { id_partida, esporte, time_a, time_b, liga, comeco_em },
- *     cotacoes_odds_api: { ... odds cruas do evento ... },
+ *     cotacoes_odds_api: { ... odds NORMALIZADAS, ver normalizarOdds.js ... },
+ *     cotacoes_odds_api_bruto: { ... JSON cru da The Odds API, uso interno do radarProcessor ... },
  *     metricas_sports_api: { ... stats do time, se disponíveis ... } | null,
  *     pre_calculos_radar: { travas_automaticas: [...] } // TODO: calcular de fato
  *   }
@@ -55,7 +57,8 @@ async function coletorReal() {
           liga: evento.sport_title || esporte,
           comeco_em: evento.commence_time,
         },
-        cotacoes_odds_api: evento,
+        cotacoes_odds_api: normalizarOdds(esporte, evento, timeA, timeB),
+        cotacoes_odds_api_bruto: evento,
         metricas_sports_api: stats,
         // TODO: travas_automaticas é lógica pura de números (sem IA) que
         // ainda precisa ser definida -- ver filtroQualidade.js, que hoje só
