@@ -4,5 +4,10 @@
       "path": "/api/cron/relatorio-rodada",
       "schedule": "0 10 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/cron/relatorio-rodada.js": {
+      "maxDuration": 300
+    }
+  }
 }
