@@ -44,7 +44,21 @@ function getClienteGemini() {
  * @param {string} timeB
  * @returns {Promise<Object|null>} objeto no formato { [esporte]: { ...campos... } } ou null
  */
-async function investigarStats(esporte, timeA, timeB) {
+async function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Extrai o retryDelay sugerido pela própria API do Gemini no corpo do erro
+ * 429 (quando presente), ou usa um backoff padrão crescente.
+ */
+function calcularEsperaRetry(erro, tentativa) {
+  const match = String(erro?.message || '').match(/"retryDelay":"(\d+)s"/);
+  if (match) return Number(match[1]) * 1000 + 500; // +500ms de folga
+  return tentativa * 5000; // backoff simples: 5s, 10s, 15s...
+}
+
+async function investigarStats(esporte, timeA, timeB, tentativa = 1) {
   const genAI = getClienteGemini();
   const fontes = FONTES_AUTORIZADAS_POR_ESPORTE[esporte];
   const campos = CAMPOS_POR_ESPORTE[esporte];
@@ -66,6 +80,8 @@ Regras:
   NÃO invente número, e não deixe de retornar os demais campos por causa de um só faltando.
 - Se não encontrar dado confiável para NENHUM dos campos, retorne null no lugar do JSON inteiro.`;
 
+  const MAX_TENTATIVAS = 3;
+
   try {
     const resultado = await genAI.models.generateContent({
       model: 'gemini-3.5-flash-lite',
@@ -83,6 +99,15 @@ Regras:
 
     return { [esporte]: json };
   } catch (erro) {
+    const eRateLimit = String(erro?.message || '').includes('RESOURCE_EXHAUSTED') || erro?.status === 429;
+
+    if (eRateLimit && tentativa < MAX_TENTATIVAS) {
+      const espera = calcularEsperaRetry(erro, tentativa);
+      console.warn(`[STATS GEMINI] Rate limit (tentativa ${tentativa}/${MAX_TENTATIVAS}) -- aguardando ${espera}ms antes de tentar de novo.`);
+      await esperar(espera);
+      return investigarStats(esporte, timeA, timeB, tentativa + 1);
+    }
+
     console.warn(`[STATS GEMINI] Falha ao investigar stats de ${timeA} x ${timeB} (fail-open): ${erro.message}`);
     return null;
   }
