@@ -1,6 +1,6 @@
 'use strict';
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 
 /**
  * O "investigador" do SmartCenter. Papel diferente do Groq (que só escreve
@@ -24,7 +24,7 @@ function getClienteGemini() {
   if (clienteGemini) return clienteGemini;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  clienteGemini = new GoogleGenerativeAI(apiKey);
+  clienteGemini = new GoogleGenAI({ apiKey });
   return clienteGemini;
 }
 
@@ -45,8 +45,6 @@ async function investigarContexto({ evento, polymarket = null, tips = [] }) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
     const prompt = `Você é um investigador de contexto para apostas esportivas.
 Partida: ${evento.time_a} x ${evento.time_b} (${evento.esporte}, ${evento.liga || 'liga não informada'}).
 
@@ -63,8 +61,11 @@ Regras:
 - "fatores_incerteza": inclua um item para cada divergência relevante entre Polymarket e odds de mercado, e para cada tip que contradiga ou reforce fortemente o consenso.
 - "aprovado" = false APENAS se o contexto disponível for contraditório ou insuficiente a ponto de tornar qualquer prognóstico irresponsável (ex: tips e Polymarket fortemente conflitantes sem explicação plausível). Na dúvida, aprove.`;
 
-    const resultado = await model.generateContent(prompt);
-    const texto = resultado.response.text().trim().replace(/^```json\s*|\s*```$/g, '');
+    const resultado = await genAI.models.generateContent({
+      model: 'gemini-3.5-flash-lite',
+      contents: prompt,
+    });
+    const texto = resultado.text.trim().replace(/^```json\s*|\s*```$/g, '');
     const json = JSON.parse(texto);
 
     return {
