@@ -2,6 +2,10 @@
 
 const { buscarOddsPorEsporte } = require('./oddsApi');
 const { buscarStatsPorEsporte } = require('./sportsApi');
+
+async function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 const { normalizarOdds } = require('./normalizarOdds');
 
 /**
@@ -43,10 +47,11 @@ async function coletorReal() {
 
       let stats = null;
       try {
-        stats = await buscarStatsPorEsporte(esporte, { timeA, timeB });
+        stats = await buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey: evento.sport_key });
       } catch (erro) {
         console.warn(`[COLETOR REAL] Partida ${idPartida}: falha ao buscar stats (${erro.message}) -- seguindo sem stats.`);
       }
+      await esperar(300); // espaçamento entre chamadas ao Gemini -- evita picos de requisição
 
       payloads.push({
         evento: {
