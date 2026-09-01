@@ -40,7 +40,7 @@ const ESPORTES_COBERTOS = ['futebol', 'basquete']; // beisebol fica de fora até
 // final, não faz sentido gastar Gemini nas 62 -- só nas com maior índice
 // de relevância (calcularRelevancia.js: micro-assimetria de domínio +
 // expectativa de pontuação, calculado sem nenhuma chamada de API).
-const LIMITE_STATS_POR_RODADA = Number(process.env.LIMITE_STATS_POR_RODADA) || 12;
+const LIMITE_STATS_POR_RODADA = Number(process.env.LIMITE_STATS_POR_RODADA) || 4;
 
 async function coletorReal() {
   const candidatos = [];
@@ -102,7 +102,7 @@ async function coletorReal() {
       } catch (erro) {
         console.warn(`[COLETOR REAL] Partida ${candidato.evento.id_partida}: falha ao buscar stats (${erro.message}) -- seguindo sem stats.`);
       }
-      await esperar(300); // espaçamento entre chamadas ao Gemini -- evita picos de requisição
+      await esperar(4500); // espaçamento real -- respeita o limite de ~15 req/min do plano gratuito do Gemini
     }
 
     const { _scoreOddsParaRanking, ...payloadLimpo } = candidato;
