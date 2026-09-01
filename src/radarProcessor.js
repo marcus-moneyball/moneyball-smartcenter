@@ -51,7 +51,7 @@ async function processarPartidaRadar(payload) {
     }
 
     // --- 3. Cálculo (Pro) -----------------------------------------------
-    const mercados = montarMercadosParaCalculo(odds, evento);
+    const mercados = montarMercadosParaCalculo(odds, evento, stats);
     if (mercados.length === 0) {
       return {
         sucesso: false,
@@ -104,22 +104,57 @@ async function processarPartidaRadar(payload) {
 }
 
 /**
- * Converte as odds cruas (formato da The Odds API) no formato de "mercados"
- * que o Pro espera em /api/v1/calc. Ajuste conforme o formato real que
- * calcular_dossie() espera por mercado (ver api/calc.py e api/candidatos.py
- * no repo do Pro) -- aqui cobrindo só moneyline/h2h como ponto de partida.
+ * Converte odds cruas (The Odds API) + stats investigadas no formato real
+ * que calcular_mercado()/estimar_lambda() do Pro esperam (ver api/calc.py):
+ *   { id, linha, odd_real_decimal, lado_odd, tipo,
+ *     media_marcada_time_a, media_sofrida_time_a,
+ *     media_marcada_time_b, media_sofrida_time_b }
+ * estimar_lambda() precisa dos 4 campos media_*; sem eles, calcular_mercado
+ * devolve "sem_dados_suficientes" -- foi exatamente isso que aconteceu na
+ * primeira versão deste arquivo (mandava um formato de moneyline que o Pro
+ * não sabia interpretar).
  */
-function montarMercadosParaCalculo(odds, evento) {
+function montarMercadosParaCalculo(odds, evento, stats) {
   const mercados = [];
   const bookmaker = odds?.bookmakers?.[0];
-  const h2h = bookmaker?.markets?.find((m) => m.key === 'h2h');
+  const totals = bookmaker?.markets?.find((m) => m.key === 'totals');
+  const over = totals?.outcomes?.find((o) => o.name === 'Over');
 
-  if (h2h) {
+  if (!over || over.point == null) {
+    return mercados; // sem mercado de totais utilizável -- nada pra calcular
+  }
+
+  if (evento.esporte === 'futebol' && stats?.futebol) {
+    const f = stats.futebol;
     mercados.push({
-      tipo: 'moneyline',
-      time_a: evento.time_a,
-      time_b: evento.time_b,
-      odds: Object.fromEntries(h2h.outcomes.map((o) => [o.name, o.price])),
+      id: `${evento.id_partida}-total_gols`,
+      tipo: 'total_jogo',
+      linha: over.point,
+      odd_real_decimal: over.price,
+      lado_odd: 'over',
+      media_marcada_time_a: f.home_xg_ataque,
+      media_sofrida_time_a: f.home_xga_defesa,
+      media_marcada_time_b: f.away_xg_ataque,
+      media_sofrida_time_b: f.away_xga_defesa,
+    });
+  } else if (evento.esporte === 'basquete') {
+    // LIMITAÇÃO CONHECIDA: estimar_lambda() precisa de médias de
+    // pontos marcados/sofridos por time, que não temos hoje (só temos
+    // net_rating via basketball-reference, não pontos absolutos). Como
+    // fallback INTERINO, usa a própria linha do mercado como
+    // media_esperada -- isso faz o cálculo rodar, mas o sinal é fraco
+    // (não incorpora nenhuma informação real sobre os times, só o que o
+    // próprio mercado já precifica). Resolver isso de verdade exige
+    // achar pontos marcados/sofridos por jogo de cada time.
+    mercados.push({
+      id: `${evento.id_partida}-total_pontos`,
+      tipo: 'total_jogo',
+      modelo: 'normal',
+      linha: over.point,
+      odd_real_decimal: over.price,
+      lado_odd: 'over',
+      media_esperada: over.point,
+      desvio_padrao: 12,
     });
   }
 
