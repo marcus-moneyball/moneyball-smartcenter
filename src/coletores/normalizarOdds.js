@@ -13,6 +13,14 @@
  */
 
 function encontrarMercado(bookmakers, marketKey) {
+  // Pinnacle é conhecida por linhas mais "afiadas" (menos margem, mais
+  // eficiente) -- prioriza ela quando disponível em vez do primeiro
+  // bookmaker qualquer da lista.
+  const pinnacle = bookmakers?.find((b) => b.key === 'pinnacle');
+  if (pinnacle) {
+    const mercado = pinnacle.markets?.find((m) => m.key === marketKey);
+    if (mercado) return mercado;
+  }
   for (const bookmaker of bookmakers || []) {
     const mercado = bookmaker.markets?.find((m) => m.key === marketKey);
     if (mercado) return mercado;
