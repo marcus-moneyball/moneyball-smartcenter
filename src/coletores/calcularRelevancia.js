@@ -31,6 +31,11 @@ const DESVIO_TOTAL_POR_ESPORTE = {
 };
 
 function encontrarMercado(bookmakers, marketKey) {
+  const pinnacle = bookmakers?.find((b) => b.key === 'pinnacle');
+  if (pinnacle) {
+    const mercado = pinnacle.markets?.find((m) => m.key === marketKey);
+    if (mercado) return mercado;
+  }
   for (const bookmaker of bookmakers || []) {
     const mercado = bookmaker.markets?.find((m) => m.key === marketKey);
     if (mercado) return mercado;
