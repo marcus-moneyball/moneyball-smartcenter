@@ -25,11 +25,16 @@ const TIMEOUT_MS = 10_000;
  * @returns {Promise<Object[]>} resultados de calcular_dossie
  */
 async function calcularNoMoneyballPro({ esporte, mercados, fatoresIncerteza = [] }) {
-  const baseUrl = process.env.MONEYBALL_PRO_BASE_URL;
+  let baseUrl = process.env.MONEYBALL_PRO_BASE_URL;
   const serviceKey = process.env.SMARTCENTER_SERVICE_KEY;
 
   if (!baseUrl) {
     throw new Error('MONEYBALL_PRO_BASE_URL não configurada.');
+  }
+  // Tolerância: a variável pode vir sem o protocolo (ex: "app.moneyballpro.com.br"
+  // em vez de "https://app.moneyballpro.com.br") -- fetch() exige URL completa.
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    baseUrl = `https://${baseUrl}`;
   }
   if (!mercados || !Array.isArray(mercados) || mercados.length === 0) {
     throw new Error('calcularNoMoneyballPro: "mercados" vazio ou inválido.');
