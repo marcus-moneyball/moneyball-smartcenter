@@ -68,7 +68,7 @@ async function processarPartidaRadar(payload) {
     });
 
     // --- 4. Montar o pódio -----------------------------------------------
-    const podioBruto = montarPodio(resultadosCalculo);
+    const podioBruto = montarPodio(resultadosCalculo, mercados, evento);
 
     // --- 5. Justificativa (Groq) ------------------------------------------
     const contextoParaTexto = { evento, fatoresIncerteza: investigacao.fatoresIncerteza };
@@ -162,19 +162,53 @@ function montarMercadosParaCalculo(odds, evento, stats) {
 }
 
 /**
- * Ordena os resultados calculados pelo Pro (por EV, já que é o critério que
- * o próprio Pro usa como norte -- ver docstring de prompts_mie2.py) e monta
- * o pódio. Puramente ordenação/seleção, nenhum recálculo.
+ * Monta o pódio a partir dos resultados brutos do Pro. Duas coisas
+ * importantes acontecem aqui que a versão anterior deste arquivo não fazia:
+ *
+ * 1. TRADUÇÃO DE CAMPOS: calcular_mercado() do Pro devolve
+ *    { status, probabilidade_over, probabilidade_under, ev, ... } -- não
+ *    tem "mercado"/"selecao"/"odd", que é o que relatorioBuilder.js espera
+ *    pra exibir. Sem essa tradução, toda posição cai em "sem seleção
+ *    segura o suficiente" mesmo quando o Pro calculou tudo certo -- foi
+ *    exatamente isso que aconteceu nos primeiros testes reais.
+ *
+ * 2. EXIGÊNCIA DE EV POSITIVO: antes o filtro era só "ev != null", o que
+ *    deixaria passar seleções com EV NEGATIVO (sem vantagem real) pro
+ *    pódio. Agora exige ev > 0 de verdade -- por isso é esperado e
+ *    correto que partidas com sinal fraco (ex: basquete, que hoje usa a
+ *    própria linha do mercado como estimativa, sem vantagem real) apareçam
+ *    como "sem seleção segura o suficiente": não é bug, é o sistema
+ *    admitindo honestamente que não achou vantagem ali.
  */
-function montarPodio(resultadosCalculo) {
-  const ordenados = [...resultadosCalculo]
-    .filter((r) => r.ev != null)
+function montarPodio(resultadosCalculo, mercadosOriginais, evento) {
+  const mercadoPorId = Object.fromEntries((mercadosOriginais || []).map((m) => [m.id, m]));
+
+  const posicoesValidas = resultadosCalculo
+    .filter((r) => r.status === 'calculado' && r.ev != null && r.ev > 0)
+    .map((r) => construirPosicaoExibicao(r, mercadoPorId[r.id], evento))
+    .filter(Boolean)
     .sort((a, b) => b.ev - a.ev);
 
   return {
-    ouro: ordenados[0] || null,
-    prata: ordenados[1] || null,
-    bronze: ordenados[2] || null,
+    ouro: posicoesValidas[0] || null,
+    prata: posicoesValidas[1] || null,
+    bronze: posicoesValidas[2] || null,
+  };
+}
+
+function construirPosicaoExibicao(resultado, mercadoOriginal, evento) {
+  if (!mercadoOriginal) return null; // não deveria acontecer (ids sempre batem), mas não quebra se acontecer
+
+  const ladoUnder = mercadoOriginal.lado_odd === 'under';
+  const probabilidade = ladoUnder ? resultado.probabilidade_under : resultado.probabilidade_over;
+  const nomeMercado = evento.esporte === 'futebol' ? 'Total de Gols' : 'Total de Pontos';
+
+  return {
+    mercado: nomeMercado,
+    selecao: `${ladoUnder ? 'Under' : 'Over'} ${mercadoOriginal.linha}`,
+    odd: mercadoOriginal.odd_real_decimal,
+    probabilidade_estimada: probabilidade,
+    ev: resultado.ev,
   };
 }
 
