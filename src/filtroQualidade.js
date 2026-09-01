@@ -60,7 +60,8 @@ function calcularCobertura(payload, blocoBase, campos) {
  * @returns {{ score: number, aprovado: boolean, detalhes: Object, motivos: string[] }}
  */
 function calcularQualidade(payload, opcoes = {}) {
-  const limiar = opcoes.limiar ?? Number(process.env.QUALIDADE_LIMIAR) ?? LIMIAR_APROVACAO_PADRAO;
+  const limiarEnv = Number(process.env.QUALIDADE_LIMIAR);
+  const limiar = opcoes.limiar ?? (Number.isFinite(limiarEnv) ? limiarEnv : LIMIAR_APROVACAO_PADRAO);
   const esporte = String(payload?.evento?.esporte || '').toLowerCase();
   const requisitos = REQUISITOS_POR_ESPORTE[esporte];
 
