@@ -2,21 +2,20 @@
 
 const { investigarStats } = require('./statsGemini');
 const { buscarStatsBasquete } = require('./statsBasketballReference');
+const { buscarStatsFutebol: buscarStatsFutebolUnderstat } = require('./statsUnderstat');
 
 /**
  * Ponto único de acesso a "stats por esporte" no pipeline.
  *
  * - basquete: scraper direto do basketball-reference.com -- grátis, sem
- *   Gemini, dado real (não proxy). Ver statsBasketballReference.js.
- * - futebol: Gemini com Google Search Grounding (statsGemini.js) -- o FBref
- *   desativou os stats avançados (xG) em janeiro/2026, então a fonte
- *   original que você usa no Pro para futebol não serve mais para xG.
- *   Sofascore (a outra fonte autorizada) pode ter alternativa, mas ainda
- *   não confirmei se dá pra raspar direto sem JS -- por ora, futebol
- *   continua via Gemini.
+ *   Gemini, dado real (net rating).
+ * - futebol: tenta o Understat.com primeiro (grátis, xG real) -- só cai
+ *   pro Gemini com grounding (pago) se o time não for encontrado lá (ex:
+ *   liga que o Understat não cobre). Isso deve eliminar a maior parte do
+ *   custo de Gemini que ainda tínhamos.
  * - beisebol: sem provider configurado ainda.
  */
-async function buscarStatsPorEsporte(esporte, { timeA, timeB }) {
+async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
   if (esporte === 'basquete') {
     try {
       return await buscarStatsBasquete(timeA, timeB);
@@ -27,6 +26,13 @@ async function buscarStatsPorEsporte(esporte, { timeA, timeB }) {
   }
 
   if (esporte === 'futebol') {
+    try {
+      const viaUnderstat = await buscarStatsFutebolUnderstat(timeA, timeB, sportKey);
+      if (viaUnderstat) return viaUnderstat;
+    } catch (erro) {
+      console.warn(`[SPORTS API] Falha no scraper do Understat (caindo pro Gemini): ${erro.message}`);
+    }
+    // Fallback: Understat não cobriu (liga fora de escopo, time não encontrado, ou erro).
     return investigarStats('futebol', timeA, timeB);
   }
 
