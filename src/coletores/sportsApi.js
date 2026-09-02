@@ -13,7 +13,10 @@ const { buscarStatsFutebol: buscarStatsFutebolUnderstat } = require('./statsUnde
  *   pro Gemini com grounding (pago) se o time não for encontrado lá (ex:
  *   liga que o Understat não cobre). Isso deve eliminar a maior parte do
  *   custo de Gemini que ainda tínhamos.
- * - beisebol: sem provider configurado ainda.
+ * - beisebol: Gemini com grounding (fangraphs/baseballsavant/baseball-reference)
+ *   -- ainda não encontrei uma fonte gratuita raspável tipo Understat/
+ *   Basketball-Reference pra beisebol, então usa o mesmo caminho pago do
+ *   futebol quando o Understat não cobre.
  */
 async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
   if (esporte === 'basquete') {
@@ -34,6 +37,10 @@ async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
     }
     // Fallback: Understat não cobriu (liga fora de escopo, time não encontrado, ou erro).
     return investigarStats('futebol', timeA, timeB);
+  }
+
+  if (esporte === 'beisebol') {
+    return investigarStats('beisebol', timeA, timeB);
   }
 
   console.warn(`[SPORTS API] Sem provider de stats configurado para "${esporte}" -- seguindo sem stats (fail-open).`);
