@@ -18,7 +18,7 @@ const { buscarStatsFutebol: buscarStatsFutebolUnderstat } = require('./statsUnde
 async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
   if (esporte === 'basquete') {
     try {
-      return await buscarStatsBasquete(timeA, timeB);
+      return await buscarStatsBasquete(timeA, timeB, sportKey);
     } catch (erro) {
       console.warn(`[SPORTS API] Falha no scraper do basketball-reference (fail-open): ${erro.message}`);
       return null;
