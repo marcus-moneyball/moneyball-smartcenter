@@ -18,11 +18,10 @@
 const CONFIG_PLACAR_POR_LIGA = {
   soccer_epl: { desvioPadraoPlacar: 1.3, mediaTotal: 2.6, desvioTotal: 0.75 },
   basketball_nba: { desvioPadraoPlacar: 12, mediaTotal: 225, desvioTotal: 15 },
-  // WNBA marca bem menos pontos que a NBA -- usar a mesma régua da NBA
-  // aqui classificaria toda linha da WNBA como "fora do normal" por engano.
-  // Valores aproximados (não calibrados com dados históricos, mesmo aviso
-  // da NBA acima se aplica).
   basketball_wnba: { desvioPadraoPlacar: 9, mediaTotal: 163, desvioTotal: 11 },
+  // Valores aproximados de referência pública (não calibrados com dados
+  // históricos), mesmo aviso das outras ligas acima.
+  baseball_mlb: { desvioPadraoPlacar: 3, mediaTotal: 8.5, desvioTotal: 2.2 },
 };
 
 function encontrarMercado(bookmakers, marketKey) {
