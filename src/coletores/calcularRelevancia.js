@@ -15,19 +15,14 @@
  * resultados, é só ajustar essas duas tabelas.
  */
 
-const DESVIO_PADRAO_PLACAR_POR_ESPORTE = {
-  basquete: 12, // dispersão típica de diferença de placar na NBA
-  futebol: 1.3, // dispersão típica de diferença de gols (escala bem menor que basquete)
-};
-
-const MEDIA_TOTAL_POR_ESPORTE = {
-  basquete: 225, // soma de pontos típica de um jogo de NBA
-  futebol: 2.6, // soma de gols típica (ambos os times)
-};
-
-const DESVIO_TOTAL_POR_ESPORTE = {
-  basquete: 15,
-  futebol: 0.75,
+const CONFIG_PLACAR_POR_LIGA = {
+  soccer_epl: { desvioPadraoPlacar: 1.3, mediaTotal: 2.6, desvioTotal: 0.75 },
+  basketball_nba: { desvioPadraoPlacar: 12, mediaTotal: 225, desvioTotal: 15 },
+  // WNBA marca bem menos pontos que a NBA -- usar a mesma régua da NBA
+  // aqui classificaria toda linha da WNBA como "fora do normal" por engano.
+  // Valores aproximados (não calibrados com dados históricos, mesmo aviso
+  // da NBA acima se aplica).
+  basketball_wnba: { desvioPadraoPlacar: 9, mediaTotal: 163, desvioTotal: 11 },
 };
 
 function encontrarMercado(bookmakers, marketKey) {
@@ -81,17 +76,17 @@ function probabilidadeViaMoneyline(h2h, timeA) {
  * pontos de vantagem numa probabilidade através de uma normal padrão
  * (Φ(pontos / desvio_padrão_do_esporte)).
  */
-function probabilidadeViaSpread(spreads, timeA, esporte) {
+function probabilidadeViaSpread(spreads, timeA, sportKey) {
   if (!spreads) return null;
   const outcomeA = spreads.outcomes.find((o) => o.name === timeA);
   if (!outcomeA || outcomeA.point == null) return null;
 
-  const sd = DESVIO_PADRAO_PLACAR_POR_ESPORTE[esporte];
-  if (!sd) return null;
+  const config = CONFIG_PLACAR_POR_LIGA[sportKey];
+  if (!config) return null;
 
   // point negativo = time A favorito por esse tanto; positivo = zebra
   const vantagem = -outcomeA.point;
-  return probabilidadeNormalAcumulada(vantagem / sd);
+  return probabilidadeNormalAcumulada(vantagem / config.desvioPadraoPlacar);
 }
 
 /**
@@ -99,24 +94,23 @@ function probabilidadeViaSpread(spreads, timeA, esporte) {
  * normalizado pelo desvio-padrão típico -- games muito acima/abaixo da
  * média costumam ter mais informação de mercado embutida.
  */
-function desvioExpectativaPontuacao(totals, esporte) {
+function desvioExpectativaPontuacao(totals, sportKey) {
   if (!totals) return 0;
   const linha = totals.outcomes.find((o) => o.name === 'Over')?.point;
   if (linha == null) return 0;
 
-  const media = MEDIA_TOTAL_POR_ESPORTE[esporte];
-  const desvio = DESVIO_TOTAL_POR_ESPORTE[esporte];
-  if (!media || !desvio) return 0;
+  const config = CONFIG_PLACAR_POR_LIGA[sportKey];
+  if (!config) return 0;
 
-  return Math.abs(linha - media) / desvio;
+  return Math.abs(linha - config.mediaTotal) / config.desvioTotal;
 }
 
 /**
- * @param {string} esporte
+ * @param {string} sportKey - ex: 'soccer_epl', 'basketball_nba', 'basketball_wnba'
  * @param {Object} eventoBruto - JSON cru da The Odds API
  * @returns {number} índice de relevância (maior = mais interessante de investigar)
  */
-function calcularIndiceRelevancia(esporte, eventoBruto) {
+function calcularIndiceRelevancia(sportKey, eventoBruto) {
   const bookmakers = eventoBruto.bookmakers || [];
   const timeA = eventoBruto.home_team;
 
@@ -125,10 +119,10 @@ function calcularIndiceRelevancia(esporte, eventoBruto) {
   const totals = encontrarMercado(bookmakers, 'totals');
 
   const probML = probabilidadeViaMoneyline(h2h, timeA);
-  const probSpread = probabilidadeViaSpread(spreads, timeA, esporte);
+  const probSpread = probabilidadeViaSpread(spreads, timeA, sportKey);
 
   const microAssimetriaDominio = probML != null && probSpread != null ? Math.abs(probML - probSpread) : 0;
-  const expectativaPontuacao = desvioExpectativaPontuacao(totals, esporte);
+  const expectativaPontuacao = desvioExpectativaPontuacao(totals, sportKey);
 
   // Pesos iguais por enquanto -- ajustável depois de observar resultados reais.
   return microAssimetriaDominio * 10 + expectativaPontuacao;
