@@ -93,6 +93,29 @@ function normalizarBasquete(eventoBruto, timeA, timeB) {
   return resultado;
 }
 
+function normalizarBeisebol(eventoBruto, timeA, timeB) {
+  const bookmakers = eventoBruto.bookmakers || [];
+  const resultado = {};
+
+  const h2h = encontrarMercado(bookmakers, 'h2h');
+  if (h2h) {
+    const casa = h2h.outcomes.find((o) => o.name === timeA);
+    const fora = h2h.outcomes.find((o) => o.name === timeB);
+    resultado.moneyline = {};
+    if (casa) resultado.moneyline.casa = casa.price;
+    if (fora) resultado.moneyline.visitante = fora.price;
+  }
+
+  // "Linha de corridas" (run line) -- equivalente ao handicap/spread no beisebol
+  const totals = encontrarMercado(bookmakers, 'totals');
+  if (totals) {
+    const over = totals.outcomes.find((o) => o.name === 'Over');
+    if (over) resultado.linha_corridas = { over: over.price, linha: over.point };
+  }
+
+  return resultado;
+}
+
 /**
  * @param {string} esporte
  * @param {Object} eventoBruto - o objeto de evento cru devolvido pela The Odds API
@@ -103,6 +126,7 @@ function normalizarBasquete(eventoBruto, timeA, timeB) {
 function normalizarOdds(esporte, eventoBruto, timeA, timeB) {
   if (esporte === 'futebol') return normalizarFutebol(eventoBruto, timeA, timeB);
   if (esporte === 'basquete') return normalizarBasquete(eventoBruto, timeA, timeB);
+  if (esporte === 'beisebol') return normalizarBeisebol(eventoBruto, timeA, timeB);
   console.warn(`[NORMALIZAR ODDS] Esporte "${esporte}" sem normalizador definido -- devolvendo vazio.`);
   return {};
 }
