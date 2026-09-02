@@ -12,32 +12,42 @@
 const BASE_URL = 'https://api.the-odds-api.com/v4';
 
 const SPORT_KEYS = {
-  futebol: 'soccer_epl', // ajuste/expanda por liga conforme a cobertura que você quer
-  basquete: 'basketball_nba',
-  beisebol: 'baseball_mlb',
+  futebol: ['soccer_epl'], // ajuste/expanda por liga conforme a cobertura que você quer
+  basquete: ['basketball_nba', 'basketball_wnba'], // cobre as duas -- NBA às vezes está em offseason
+  beisebol: ['baseball_mlb'],
 };
 
 /**
  * @param {string} esporte - 'futebol' | 'basquete' | 'beisebol'
- * @returns {Promise<Object[]>} eventos com odds (formato bruto da The Odds API)
+ * @returns {Promise<Object[]>} eventos com odds de TODAS as ligas mapeadas pro esporte
  */
 async function buscarOddsPorEsporte(esporte) {
   const apiKey = process.env.ODDS_API_KEY;
   if (!apiKey) throw new Error('ODDS_API_KEY não configurada.');
 
-  const sportKey = SPORT_KEYS[esporte];
-  if (!sportKey) {
+  const sportKeys = SPORT_KEYS[esporte];
+  if (!sportKeys) {
     console.warn(`[ODDS API] Esporte "${esporte}" sem sport_key mapeado -- pulando.`);
     return [];
   }
 
-  const url = `${BASE_URL}/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us,eu&markets=h2h,totals&oddsFormat=decimal`;
-
-  const resposta = await fetch(url);
-  if (!resposta.ok) {
-    throw new Error(`Odds API respondeu ${resposta.status} para ${sportKey}`);
+  const todosEventos = [];
+  for (const sportKey of sportKeys) {
+    const url = `${BASE_URL}/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us,eu&markets=h2h,totals&oddsFormat=decimal`;
+    try {
+      const resposta = await fetch(url);
+      if (!resposta.ok) {
+        console.warn(`[ODDS API] ${sportKey} respondeu ${resposta.status} -- pulando essa liga.`);
+        continue;
+      }
+      const eventos = await resposta.json();
+      todosEventos.push(...eventos);
+    } catch (erro) {
+      console.warn(`[ODDS API] Falha ao buscar ${sportKey}: ${erro.message}`);
+    }
   }
-  return resposta.json();
+
+  return todosEventos;
 }
 
 module.exports = { buscarOddsPorEsporte, SPORT_KEYS };
