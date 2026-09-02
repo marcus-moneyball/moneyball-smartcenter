@@ -46,7 +46,9 @@ function formatarJogo(resultado) {
  */
 function montarRelatorioRodada(resultadosAprovados, resumoExecucao = {}) {
   const dataHoje = new Date().toISOString().slice(0, 10);
-  const titulo = `Relatório da Rodada — ${dataHoje}`;
+  const titulo = resumoExecucao.nomeEsporte
+    ? `Relatório de ${resumoExecucao.nomeEsporte} da Rodada — ${dataHoje}`
+    : `Relatório da Rodada — ${dataHoje}`;
 
   if (resultadosAprovados.length === 0) {
     return {
