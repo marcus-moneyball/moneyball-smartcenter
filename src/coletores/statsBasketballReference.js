@@ -1,22 +1,26 @@
 'use strict';
 
 /**
- * Scraper de estatísticas de basquete direto do basketball-reference.com --
- * SEM Gemini, sem custo de grounding. A página "Team Ratings" lista ORtg/
- * DRtg/NRtg reais (não proxy) de todos os 30 times numa tabela HTML simples
- * (confirmado: não está escondida em comentário HTML, ao contrário de
- * algumas tabelas "avançadas" desse site).
+ * Scraper de basquete direto do basketball-reference.com -- SEM Gemini, sem
+ * custo de grounding. Uma única página (season summary) traz tudo que
+ * precisamos:
+ *   - "Per Game Stats" (Team / Opponent): pontos marcados e sofridos por
+ *     jogo -- o equivalente de basquete ao xG do futebol, e o que
+ *     estimar_lambda() do Pro realmente precisa (media_marcada/sofrida).
+ *   - "Advanced Stats": ORtg, DRtg, NRtg e Pace real -- resolve a pendência
+ *     anterior (antes eu não tinha achado pace nessa fonte).
  *
- * PENDÊNCIA CONHECIDA: "pace" (posses por jogo) não está nessa página --
- * fica em outra tabela (team advanced/per-poss) que ainda não confirmei a
- * estrutura. filtroQualidade.js não vai considerar basquete 100% completo
- * até isso ser resolvido, mas net_rating real já é uma melhoria grande
- * sobre a proxy anterior.
+ * IMPORTANTE: os ids de tabela abaixo ("per_game-team", "per_game-opponent",
+ * "advanced-team") seguem a convenção conhecida do basketball-reference,
+ * mas não foram confirmados campo-a-campo contra o HTML bruto real (o
+ * conteúdo que inspecionei veio convertido em texto). Se a Basketball-
+ * Reference mudar a estrutura, isso falha de forma visível (fail-open,
+ * loga aviso) -- ver console.warn abaixo.
  */
 
-const URL_RATINGS = 'https://www.basketball-reference.com/leagues/NBA_2026_ratings.html';
+const URL_TEMPORADA = 'https://www.basketball-reference.com/leagues/NBA_2026.html';
 
-let cacheRatings = null; // Array<{ nome, ortg, drtg, nrtg }>
+let cacheDados = null; // { pontosPorTime: Map<abbr, {marcados, sofridos}>, avancadoPorTime: Map<abbr, {ortg, drtg, nrtg, pace}>, nomePorAbbr: Map }
 
 function normalizarNome(nome) {
   return String(nome || '')
@@ -27,75 +31,124 @@ function normalizarNome(nome) {
     .trim();
 }
 
-async function buscarRatingsBasketballReference() {
-  if (cacheRatings) return cacheRatings;
+function extrairTabelaPorId(html, id) {
+  const inicio = html.indexOf(`id="${id}"`);
+  if (inicio === -1) return null;
+  const tabelaInicio = html.lastIndexOf('<table', inicio);
+  const tabelaFim = html.indexOf('</table>', inicio);
+  if (tabelaInicio === -1 || tabelaFim === -1) return null;
+  return html.slice(tabelaInicio, tabelaFim + '</table>'.length);
+}
 
-  const resposta = await fetch(URL_RATINGS, {
+function extrairLinhasComTime(tabelaHtml) {
+  if (!tabelaHtml) return [];
+  const linhas = [...tabelaHtml.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
+  const resultado = [];
+
+  for (const linha of linhas) {
+    const abbrMatch = linha.match(/teams\/([A-Z]{3})\/\d{4}\.html"[^>]*>([^<]+)</);
+    if (!abbrMatch) continue;
+
+    const celulas = [...linha.matchAll(/<td[^>]*data-stat="([a-z0-9_]+)"[^>]*>([^<]*)</g)];
+    const porCampo = Object.fromEntries(celulas.map((c) => [c[1], c[2]]));
+
+    resultado.push({ abbr: abbrMatch[1], nome: abbrMatch[2], campos: porCampo });
+  }
+
+  return resultado;
+}
+
+async function buscarDadosTemporada() {
+  if (cacheDados) return cacheDados;
+
+  const resposta = await fetch(URL_TEMPORADA, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MoneyballSmartCenter/1.0)' },
   });
   if (!resposta.ok) throw new Error(`basketball-reference.com respondeu ${resposta.status}`);
   const html = await resposta.text();
 
-  // Parse simples via regex nas linhas da tabela -- evita depender de uma
-  // lib de parsing de HTML só para uma tabela bem regular. Cada linha de
-  // time tem: <td ...>Team</td>...<td ...>ORtg</td><td ...>DRtg</td><td ...>NRtg</td>
-  // (colunas "Unadjusted"). Ajuste se a estrutura da página mudar.
-  const linhas = [...html.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
-  const times = [];
+  const tabelaTime = extrairTabelaPorId(html, 'per_game-team');
+  const tabelaAdversario = extrairTabelaPorId(html, 'per_game-opponent');
+  const tabelaAvancada = extrairTabelaPorId(html, 'advanced-team');
 
-  for (const linha of linhas) {
-    const nomeMatch = linha.match(/teams\/[A-Z]{3}\/\d{4}\.html"[^>]*>([^<]+)</);
-    if (!nomeMatch) continue;
+  const linhasTime = extrairLinhasComTime(tabelaTime);
+  const linhasAdversario = extrairLinhasComTime(tabelaAdversario);
+  const linhasAvancada = extrairLinhasComTime(tabelaAvancada);
 
-    const celulas = [...linha.matchAll(/<td[^>]*data-stat="([a-z_]+)"[^>]*>([^<]*)</g)];
-    const porCampo = Object.fromEntries(celulas.map((c) => [c[1], c[2]]));
-
-    const ortg = parseFloat(porCampo.off_rtg);
-    const drtg = parseFloat(porCampo.def_rtg);
-    const nrtg = parseFloat(porCampo.net_rtg);
-
-    if (!Number.isNaN(ortg) && !Number.isNaN(drtg)) {
-      times.push({ nome: nomeMatch[1], ortg, drtg, nrtg: Number.isNaN(nrtg) ? ortg - drtg : nrtg });
-    }
+  if (linhasTime.length === 0 || linhasAdversario.length === 0) {
+    throw new Error('Não consegui extrair as tabelas Per Game Stats (Team/Opponent) -- estrutura pode ter mudado.');
   }
 
-  if (times.length === 0) {
-    throw new Error('Não consegui extrair nenhuma linha de time -- a estrutura da página pode ter mudado.');
+  const pontosPorTime = new Map();
+  for (const linha of linhasTime) {
+    pontosPorTime.set(linha.abbr, { marcados: parseFloat(linha.campos.pts), nome: linha.nome });
+  }
+  for (const linha of linhasAdversario) {
+    const atual = pontosPorTime.get(linha.abbr) || {};
+    pontosPorTime.set(linha.abbr, { ...atual, sofridos: parseFloat(linha.campos.pts) });
   }
 
-  cacheRatings = times;
-  return times;
+  const avancadoPorTime = new Map();
+  for (const linha of linhasAvancada) {
+    avancadoPorTime.set(linha.abbr, {
+      ortg: parseFloat(linha.campos.off_rtg),
+      drtg: parseFloat(linha.campos.def_rtg),
+      nrtg: parseFloat(linha.campos.net_rtg),
+      pace: parseFloat(linha.campos.pace),
+    });
+  }
+
+  cacheDados = { pontosPorTime, avancadoPorTime };
+  return cacheDados;
+}
+
+function encontrarAbbrPorNome(nomeAlvo, pontosPorTime) {
+  const alvo = normalizarNome(nomeAlvo);
+  for (const [abbr, dados] of pontosPorTime.entries()) {
+    const nomeNorm = normalizarNome(dados.nome);
+    if (nomeNorm === alvo || alvo.includes(nomeNorm) || nomeNorm.includes(alvo)) return abbr;
+  }
+  return null;
 }
 
 /**
  * @param {string} timeA
  * @param {string} timeB
- * @returns {Promise<Object|null>} { basquete: { net_rating_casa, net_rating_visitante } } ou null
+ * @returns {Promise<Object|null>} { basquete: { home_xg_ataque, home_xga_defesa, away_xg_ataque, away_xga_defesa, net_rating_casa, net_rating_visitante, pace_casa } } ou null
+ *
+ * Os nomes de campo home_xg_ataque/home_xga_defesa são reaproveitados do
+ * contrato do futebol (mesma forma que estimar_lambda() do Pro espera) --
+ * aqui carregam pontos marcados/sofridos por jogo, não xG de verdade.
  */
 async function buscarStatsBasquete(timeA, timeB) {
-  const times = await buscarRatingsBasketballReference();
-  const alvoA = normalizarNome(timeA);
-  const alvoB = normalizarNome(timeB);
+  const { pontosPorTime, avancadoPorTime } = await buscarDadosTemporada();
 
-  const encontrarTime = (alvo) =>
-    times.find((t) => {
-      const nomeNorm = normalizarNome(t.nome);
-      return nomeNorm === alvo || alvo.includes(nomeNorm) || nomeNorm.includes(alvo);
-    });
+  const abbrA = encontrarAbbrPorNome(timeA, pontosPorTime);
+  const abbrB = encontrarAbbrPorNome(timeB, pontosPorTime);
 
-  const timeAEncontrado = encontrarTime(alvoA);
-  const timeBEncontrado = encontrarTime(alvoB);
-
-  if (!timeAEncontrado || !timeBEncontrado) {
-    console.warn(`[BASKETBALL-REFERENCE] Não encontrei "${timeA}" e/ou "${timeB}" na tabela de ratings.`);
+  if (!abbrA || !abbrB) {
+    console.warn(`[BASKETBALL-REFERENCE] Não encontrei "${timeA}" e/ou "${timeB}" na tabela de pontos.`);
     return null;
   }
 
+  const pontosA = pontosPorTime.get(abbrA);
+  const pontosB = pontosPorTime.get(abbrB);
+  if (pontosA?.marcados == null || pontosA?.sofridos == null || pontosB?.marcados == null || pontosB?.sofridos == null) {
+    return null;
+  }
+
+  const avancadoA = avancadoPorTime.get(abbrA) || {};
+  const avancadoB = avancadoPorTime.get(abbrB) || {};
+
   return {
     basquete: {
-      net_rating_casa: timeAEncontrado.nrtg,
-      net_rating_visitante: timeBEncontrado.nrtg,
-      // pace_casa: TODO -- não está nesta página, ver docstring do arquivo.
+      home_xg_ataque: pontosA.marcados,
+      home_xga_defesa: pontosA.sofridos,
+      away_xg_ataque: pontosB.marcados,
+      away_xga_defesa: pontosB.sofridos,
+      net_rating_casa: avancadoA.nrtg ?? null,
+      net_rating_visitante: avancadoB.nrtg ?? null,
+      pace_casa: avancadoA.pace ?? null,
     },
   };
 }
