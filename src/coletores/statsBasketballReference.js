@@ -18,9 +18,17 @@
  * loga aviso) -- ver console.warn abaixo.
  */
 
-const URL_TEMPORADA = 'https://www.basketball-reference.com/leagues/NBA_2026.html';
+const URL_POR_LIGA = {
+  nba: 'https://www.basketball-reference.com/leagues/NBA_2026.html',
+  wnba: 'https://www.basketball-reference.com/wnba/years/2026.html',
+};
 
-let cacheDados = null; // { pontosPorTime: Map<abbr, {marcados, sofridos}>, avancadoPorTime: Map<abbr, {ortg, drtg, nrtg, pace}>, nomePorAbbr: Map }
+const SPORT_KEY_PARA_LIGA = {
+  basketball_nba: 'nba',
+  basketball_wnba: 'wnba',
+};
+
+let cachePorLiga = {}; // { [liga]: { pontosPorTime, avancadoPorTime } }
 
 function normalizarNome(nome) {
   return String(nome || '')
@@ -58,13 +66,16 @@ function extrairLinhasComTime(tabelaHtml) {
   return resultado;
 }
 
-async function buscarDadosTemporada() {
-  if (cacheDados) return cacheDados;
+async function buscarDadosTemporada(liga) {
+  if (cachePorLiga[liga]) return cachePorLiga[liga];
 
-  const resposta = await fetch(URL_TEMPORADA, {
+  const url = URL_POR_LIGA[liga];
+  if (!url) throw new Error(`Liga "${liga}" sem URL mapeada.`);
+
+  const resposta = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MoneyballSmartCenter/1.0)' },
   });
-  if (!resposta.ok) throw new Error(`basketball-reference.com respondeu ${resposta.status}`);
+  if (!resposta.ok) throw new Error(`basketball-reference.com respondeu ${resposta.status} (${liga})`);
   const html = await resposta.text();
 
   const tabelaTime = extrairTabelaPorId(html, 'per_game-team');
@@ -98,8 +109,8 @@ async function buscarDadosTemporada() {
     });
   }
 
-  cacheDados = { pontosPorTime, avancadoPorTime };
-  return cacheDados;
+  cachePorLiga[liga] = { pontosPorTime, avancadoPorTime };
+  return cachePorLiga[liga];
 }
 
 function encontrarAbbrPorNome(nomeAlvo, pontosPorTime) {
@@ -120,8 +131,9 @@ function encontrarAbbrPorNome(nomeAlvo, pontosPorTime) {
  * contrato do futebol (mesma forma que estimar_lambda() do Pro espera) --
  * aqui carregam pontos marcados/sofridos por jogo, não xG de verdade.
  */
-async function buscarStatsBasquete(timeA, timeB) {
-  const { pontosPorTime, avancadoPorTime } = await buscarDadosTemporada();
+async function buscarStatsBasquete(timeA, timeB, sportKey) {
+  const liga = SPORT_KEY_PARA_LIGA[sportKey] || 'nba';
+  const { pontosPorTime, avancadoPorTime } = await buscarDadosTemporada(liga);
 
   const abbrA = encontrarAbbrPorNome(timeA, pontosPorTime);
   const abbrB = encontrarAbbrPorNome(timeB, pontosPorTime);
