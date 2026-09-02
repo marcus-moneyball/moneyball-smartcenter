@@ -152,6 +152,26 @@ function montarMercadosParaCalculo(odds, evento, stats) {
       media_sofrida_time_b: b.away_xga_defesa,
       desvio_padrao: 12,
     });
+  } else if (evento.esporte === 'beisebol') {
+    // LIMITAÇÃO CONHECIDA (mesmo caso que o basquete tinha antes de
+    // resolvermos): os campos que o Gemini investiga pra beisebol hoje são
+    // ERA e K/9 do titular (ver statsGemini.js), que não convertem
+    // diretamente pra "corridas marcadas/sofridas por jogo" que
+    // estimar_lambda() precisa -- exigiria uma fórmula sabermétrica própria
+    // que eu não vou inventar sem validar. Por ora, mesmo fallback fraco:
+    // usa a própria linha do mercado como expectativa. Resolver de verdade
+    // exige achar corridas marcadas/sofridas reais por time (provavelmente
+    // baseball-reference tem isso, análogo ao que fizemos pro basquete).
+    mercados.push({
+      id: `${evento.id_partida}-total_corridas`,
+      tipo: 'total_jogo',
+      modelo: 'normal',
+      linha: over.point,
+      odd_real_decimal: over.price,
+      lado_odd: 'over',
+      media_esperada: over.point,
+      desvio_padrao: 2.2,
+    });
   }
 
   return mercados;
@@ -197,7 +217,8 @@ function construirPosicaoExibicao(resultado, mercadoOriginal, evento) {
 
   const ladoUnder = mercadoOriginal.lado_odd === 'under';
   const probabilidade = ladoUnder ? resultado.probabilidade_under : resultado.probabilidade_over;
-  const nomeMercado = evento.esporte === 'futebol' ? 'Total de Gols' : 'Total de Pontos';
+  const nomesPorEsporte = { futebol: 'Total de Gols', basquete: 'Total de Pontos', beisebol: 'Total de Corridas' };
+  const nomeMercado = nomesPorEsporte[evento.esporte] || 'Total do Jogo';
 
   return {
     mercado: nomeMercado,
