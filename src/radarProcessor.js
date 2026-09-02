@@ -137,15 +137,8 @@ function montarMercadosParaCalculo(odds, evento, stats) {
       media_marcada_time_b: f.away_xg_ataque,
       media_sofrida_time_b: f.away_xga_defesa,
     });
-  } else if (evento.esporte === 'basquete') {
-    // LIMITAÇÃO CONHECIDA: estimar_lambda() precisa de médias de
-    // pontos marcados/sofridos por time, que não temos hoje (só temos
-    // net_rating via basketball-reference, não pontos absolutos). Como
-    // fallback INTERINO, usa a própria linha do mercado como
-    // media_esperada -- isso faz o cálculo rodar, mas o sinal é fraco
-    // (não incorpora nenhuma informação real sobre os times, só o que o
-    // próprio mercado já precifica). Resolver isso de verdade exige
-    // achar pontos marcados/sofridos por jogo de cada time.
+  } else if (evento.esporte === 'basquete' && stats?.basquete) {
+    const b = stats.basquete;
     mercados.push({
       id: `${evento.id_partida}-total_pontos`,
       tipo: 'total_jogo',
@@ -153,7 +146,10 @@ function montarMercadosParaCalculo(odds, evento, stats) {
       linha: over.point,
       odd_real_decimal: over.price,
       lado_odd: 'over',
-      media_esperada: over.point,
+      media_marcada_time_a: b.home_xg_ataque,
+      media_sofrida_time_a: b.home_xga_defesa,
+      media_marcada_time_b: b.away_xg_ataque,
+      media_sofrida_time_b: b.away_xga_defesa,
       desvio_padrao: 12,
     });
   }
