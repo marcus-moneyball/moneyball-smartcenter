@@ -96,6 +96,7 @@ Regras:
 - Se não encontrar dado confiável para NENHUM dos campos, retorne null no lugar do JSON inteiro.`;
 
   const MAX_TENTATIVAS = 3;
+  let textoBrutoParaDebug = '(sem resposta)';
 
   try {
     const resultado = await genAI.models.generateContent({
@@ -108,9 +109,16 @@ Regras:
     });
 
     const texto = resultado.text.trim().replace(/^```json\s*|\s*```$/g, '');
+    textoBrutoParaDebug = texto;
     const json = JSON.parse(texto);
 
-    if (!json || campos.every((c) => json[c] == null)) return null;
+    if (!json || campos.every((c) => json[c] == null)) {
+      console.log(`[STATS GEMINI] ${timeA} x ${timeB} (${esporte}): sem dado confiável em nenhum campo. Resposta bruta: ${texto.slice(0, 300)}`);
+      return null;
+    }
+
+    const camposComDado = campos.filter((c) => json[c] != null);
+    console.log(`[STATS GEMINI] ${timeA} x ${timeB} (${esporte}): ${camposComDado.length}/${campos.length} campos preenchidos (${camposComDado.join(', ')}).`);
 
     return { [esporte]: json };
   } catch (erro) {
@@ -123,7 +131,7 @@ Regras:
       return investigarStats(esporte, timeA, timeB, tentativa + 1);
     }
 
-    console.warn(`[STATS GEMINI] Falha ao investigar stats de ${timeA} x ${timeB} (fail-open): ${erro.message}`);
+    console.warn(`[STATS GEMINI] Falha ao investigar stats de ${timeA} x ${timeB} (fail-open): ${erro.message} | resposta bruta: ${textoBrutoParaDebug.slice(0, 300)}`);
     return null;
   }
 }
