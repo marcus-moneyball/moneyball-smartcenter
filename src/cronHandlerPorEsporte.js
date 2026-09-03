@@ -1,11 +1,11 @@
 'use strict';
 
-const { coletarPartidasDaRodada } = require('../coletaRodada');
-const { calcularQualidade } = require('../filtroQualidade');
-const { processarPartidaRadar } = require('../radarProcessor');
-const { montarRelatorioRodada } = require('../relatorioBuilder');
-const { publicarRelatorioNoGhost } = require('../ghostService');
-const { criarColetorReal } = require('../coletores/coletorReal');
+const { coletarPartidasDaRodada } = require('./coletaRodada');
+const { calcularQualidade } = require('./filtroQualidade');
+const { processarPartidaRadar } = require('./radarProcessor');
+const { montarRelatorioRodada } = require('./relatorioBuilder');
+const { publicarRelatorioNoGhost } = require('./ghostService');
+const { criarColetorReal } = require('./coletores/coletorReal');
 
 /**
  * Handler compartilhado pelos 3 crons por esporte (relatorio-futebol.js,
