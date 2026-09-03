@@ -7,25 +7,24 @@ const { buscarStatsFutebol: buscarStatsFutebolUnderstat } = require('./statsUnde
 /**
  * Ponto único de acesso a "stats por esporte" no pipeline.
  *
- * - basquete: scraper direto do basketball-reference.com -- grátis, sem
- *   Gemini, dado real (net rating).
- * - futebol: tenta o Understat.com primeiro (grátis, xG real) -- só cai
- *   pro Gemini com grounding (pago) se o time não for encontrado lá (ex:
- *   liga que o Understat não cobre). Isso deve eliminar a maior parte do
- *   custo de Gemini que ainda tínhamos.
- * - beisebol: Gemini com grounding (fangraphs/baseballsavant/baseball-reference)
- *   -- ainda não encontrei uma fonte gratuita raspável tipo Understat/
- *   Basketball-Reference pra beisebol, então usa o mesmo caminho pago do
- *   futebol quando o Understat não cobre.
+ * MUDANÇA IMPORTANTE: os dois scrapers gratuitos (Understat, Basketball-
+ * Reference) se mostraram não-confiáveis a partir de uma function
+ * serverless: o Understat reestruturou o site (não embute mais os dados
+ * numa variável JS simples), e o Basketball-Reference bloqueia a Vercel com
+ * um desafio anti-bot (Cloudflare) -- confirmado via teste direto, não é
+ * mais suposição. Ambos ainda são tentados primeiro (baixo custo, às vezes
+ * funcionam), mas o Gemini agora é o fallback real e esperado pros dois
+ * esportes, não uma exceção rara.
  */
 async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
   if (esporte === 'basquete') {
     try {
-      return await buscarStatsBasquete(timeA, timeB, sportKey);
+      const viaScraper = await buscarStatsBasquete(timeA, timeB, sportKey);
+      if (viaScraper) return viaScraper;
     } catch (erro) {
-      console.warn(`[SPORTS API] Falha no scraper do basketball-reference (fail-open): ${erro.message}`);
-      return null;
+      console.warn(`[SPORTS API] Falha no scraper do basketball-reference (caindo pro Gemini): ${erro.message}`);
     }
+    return investigarStats('basquete', timeA, timeB);
   }
 
   if (esporte === 'futebol') {
@@ -35,7 +34,6 @@ async function buscarStatsPorEsporte(esporte, { timeA, timeB, sportKey }) {
     } catch (erro) {
       console.warn(`[SPORTS API] Falha no scraper do Understat (caindo pro Gemini): ${erro.message}`);
     }
-    // Fallback: Understat não cobriu (liga fora de escopo, time não encontrado, ou erro).
     return investigarStats('futebol', timeA, timeB);
   }
 
