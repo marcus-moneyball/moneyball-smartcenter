@@ -25,7 +25,11 @@ const FONTES_AUTORIZADAS_POR_ESPORTE = {
 // o que pedimos ao Gemini. Mudou o filtro, muda aqui também.
 const CAMPOS_POR_ESPORTE = {
   futebol: ['home_xg_ataque', 'home_xga_defesa', 'away_xg_ataque', 'away_xga_defesa'],
-  basquete: ['net_rating_casa', 'net_rating_visitante', 'pace_casa'],
+  // Mesmos nomes de campo que o scraper do basketball-reference usa (ver
+  // statsBasketballReference.js) -- aqui representam pontos marcados/sofridos
+  // por jogo, não net rating, pra bater com o que radarProcessor.js espera
+  // ao montar o payload de cálculo do Pro.
+  basquete: ['home_xg_ataque', 'home_xga_defesa', 'away_xg_ataque', 'away_xga_defesa'],
   beisebol: ['era_titular_casa', 'era_titular_visitante', 'k9_titular_casa'],
 };
 
@@ -58,10 +62,19 @@ function calcularEsperaRetry(erro, tentativa) {
   return tentativa * 5000; // backoff simples: 5s, 10s, 15s...
 }
 
+const DESCRICAO_CAMPOS_POR_ESPORTE = {
+  futebol: 'xG (gols esperados) a favor e contra, por jogo, na temporada atual',
+  // Nomes de campo reaproveitados do futebol por compatibilidade de código,
+  // mas aqui representam PONTOS marcados/sofridos por jogo -- não xG.
+  basquete: 'pontos marcados e sofridos por jogo (média da temporada atual) -- NÃO é xG, isso é terminologia de futebol',
+  beisebol: 'ERA (earned run average) e K/9 (strikeouts por 9 innings) do titular provável',
+};
+
 async function investigarStats(esporte, timeA, timeB, tentativa = 1) {
   const genAI = getClienteGemini();
   const fontes = FONTES_AUTORIZADAS_POR_ESPORTE[esporte];
   const campos = CAMPOS_POR_ESPORTE[esporte];
+  const descricaoCampos = DESCRICAO_CAMPOS_POR_ESPORTE[esporte];
 
   if (!genAI || !fontes || !campos) return null;
 
@@ -70,6 +83,8 @@ async function investigarStats(esporte, timeA, timeB, tentativa = 1) {
   const prompt = `Você é um investigador quantitativo esportivo. Busque na internet, OBRIGATORIAMENTE
 usando o operador de busca ${fontes}, as estatísticas mais recentes e confiáveis dos
 times "${timeA}" e "${timeB}" para ${esporte.toUpperCase()}.
+
+Os campos abaixo representam: ${descricaoCampos}.
 
 Retorne ESTRITAMENTE este JSON, sem markdown, sem texto fora do JSON:
 ${JSON.stringify(exemploJson)}
