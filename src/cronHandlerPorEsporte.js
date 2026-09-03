@@ -20,6 +20,8 @@ function criarHandlerPorEsporte(esportesAlvo, nomeEsporte) {
   const coletor = criarColetorReal(esportesAlvo);
 
   return async function handler(req, res) {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+
     const segredoEsperado = process.env.CRON_SECRET;
     const auth = req.headers.authorization;
 
