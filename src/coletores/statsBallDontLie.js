@@ -57,7 +57,10 @@ function mediaMarcadosSofridos(jogos, teamId) {
   const finalizados = jogos.filter(
     (j) => (j.home_team.id === teamId || j.visitor_team.id === teamId) && j.status === 'Final'
   );
-  if (finalizados.length === 0) return null;
+  // Mesmo cuidado do futebol: poucos jogos disputados deixam a média
+  // vulnerável a um resultado fora da curva.
+  const MINIMO_JOGOS_CONFIAVEL = 5;
+  if (finalizados.length < MINIMO_JOGOS_CONFIAVEL) return null;
 
   let somaMarcados = 0;
   let somaSofridos = 0;
