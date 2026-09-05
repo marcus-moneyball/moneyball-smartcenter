@@ -6,9 +6,17 @@ const GhostAdminAPI = require('@tryghost/admin-api');
  * Publica o relatório da rodada como post no Ghost.
  * Responsabilidade única: publicar. Nunca decide SE deve publicar
  * (isso é decidido antes, no orquestrador do cron) nem formata conteúdo
- * (isso já vem pronto do relatorioBuilder).
+ * (relatorioBuilder já entrega HTML pronto, estilizado).
  *
  * Requer as env vars: GHOST_API_URL, GHOST_ADMIN_API_KEY
+ *
+ * Configuráveis via env var (opcionais):
+ *   GHOST_POST_STATUS: 'draft' (padrão) | 'published'
+ *   GHOST_POST_VISIBILITY: 'public' (padrão) | 'members' | 'paid'
+ *
+ * ATENÇÃO: GHOST_POST_STATUS=published remove a revisão manual antes de
+ * ir ao ar -- só ative depois de confiar na qualidade das seleções ao
+ * longo de alguns dias de rascunho.
  */
 function criarClienteGhost() {
   const url = process.env.GHOST_API_URL;
@@ -22,39 +30,18 @@ function criarClienteGhost() {
 }
 
 /**
- * Converte markdown simples (o que o relatorioBuilder gera) em HTML básico.
- * Mantido deliberadamente simples — não é um parser de markdown completo,
- * só cobre os padrões que o relatorioBuilder efetivamente produz
- * (##, ###, **negrito**, > citação, --- como separador, quebras de parágrafo).
- */
-function markdownParaHtmlBasico(markdown) {
-  return markdown
-    .split('\n\n')
-    .map((bloco) => {
-      const linha = bloco.trim();
-      if (linha.startsWith('## ')) return `<h2>${linha.slice(3)}</h2>`;
-      if (linha.startsWith('### ')) return `<h3>${linha.slice(4)}</h3>`;
-      if (linha === '---') return '<hr>';
-      if (linha.startsWith('> ')) return `<blockquote>${linha.slice(2)}</blockquote>`;
-      const comNegrito = linha.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      return `<p>${comNegrito.replace(/\n/g, '<br>')}</p>`;
-    })
-    .join('\n');
-}
-
-/**
- * publicarRelatorioNoGhost({ titulo, markdown })
+ * publicarRelatorioNoGhost({ titulo, html })
  * @returns {Promise<{ id: string, url: string }>}
  */
-async function publicarRelatorioNoGhost({ titulo, markdown }, opcoes = {}) {
+async function publicarRelatorioNoGhost({ titulo, html }, opcoes = {}) {
   const api = criarClienteGhost();
-  const html = markdownParaHtmlBasico(markdown);
 
   const post = await api.posts.add(
     {
       title: titulo,
       html,
       status: opcoes.status || process.env.GHOST_POST_STATUS || 'draft', // draft por padrão — publish é decisão explícita
+      visibility: opcoes.visibility || process.env.GHOST_POST_VISIBILITY || 'public',
       tags: opcoes.tags || ['relatorio-rodada'],
     },
     { source: 'html' }
