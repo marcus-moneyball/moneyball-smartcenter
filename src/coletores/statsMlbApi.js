@@ -58,6 +58,11 @@ async function buscarCorridasPorJogo(teamId) {
 
   if (!statsHitting?.runs || !statsPitching?.runs || !statsHitting?.gamesPlayed) return null;
 
+  // Mesmo cuidado do futebol/basquete: poucos jogos disputados deixam a
+  // média vulnerável a um resultado fora da curva.
+  const MINIMO_JOGOS_CONFIAVEL = 5;
+  if (statsHitting.gamesPlayed < MINIMO_JOGOS_CONFIAVEL) return null;
+
   return {
     marcadas: Number((statsHitting.runs / statsHitting.gamesPlayed).toFixed(2)),
     sofridas: Number((statsPitching.runs / statsHitting.gamesPlayed).toFixed(2)),
