@@ -89,7 +89,20 @@ async function buscarStatsFutebol(timeA, timeB, sportKey) {
   const linhaA = tabela.find((l) => l.team.id === idA);
   const linhaB = tabela.find((l) => l.team.id === idB);
 
-  if (!linhaA?.playedGames || !linhaB?.playedGames) return null;
+  // Amostra pequena (início de temporada) deixa a média vulnerável a um
+  // único jogo de placar fora da curva (ex: 5-2 na 1ª rodada distorce a
+  // média de gols de um time que só jogou 2-3 partidas). Abaixo desse
+  // mínimo, prefere cair pro Gemini (que pelo menos busca contexto
+  // qualitativo) a confiar numa média estatisticamente frágil.
+  const MINIMO_JOGOS_CONFIAVEL = 5;
+  if (
+    !linhaA?.playedGames ||
+    !linhaB?.playedGames ||
+    linhaA.playedGames < MINIMO_JOGOS_CONFIAVEL ||
+    linhaB.playedGames < MINIMO_JOGOS_CONFIAVEL
+  ) {
+    return null;
+  }
 
   return {
     futebol: {
