@@ -25,12 +25,14 @@ const FONTES_AUTORIZADAS_POR_ESPORTE = {
 // o que pedimos ao Gemini. Mudou o filtro, muda aqui também.
 const CAMPOS_POR_ESPORTE = {
   futebol: ['home_xg_ataque', 'home_xga_defesa', 'away_xg_ataque', 'away_xga_defesa'],
-  // Mesmos nomes de campo que o scraper do basketball-reference usa (ver
-  // statsBasketballReference.js) -- aqui representam pontos marcados/sofridos
-  // por jogo, não net rating, pra bater com o que radarProcessor.js espera
-  // ao montar o payload de cálculo do Pro.
+  // Mesmos nomes de campo reaproveitados nos três esportes por compatibilidade
+  // de código -- representam a média marcada/sofrida por jogo na unidade de
+  // cada esporte (gols, pontos, corridas), não xG de verdade. É a mesma
+  // métrica que os providers de API real usam (statsFootballData.js,
+  // statsBallDontLie.js, statsMlbApi.js) -- Gemini é só o fallback quando
+  // essas APIs não cobrem o time/liga.
   basquete: ['home_xg_ataque', 'home_xga_defesa', 'away_xg_ataque', 'away_xga_defesa'],
-  beisebol: ['era_titular_casa', 'era_titular_visitante', 'k9_titular_casa'],
+  beisebol: ['home_xg_ataque', 'home_xga_defesa', 'away_xg_ataque', 'away_xga_defesa'],
 };
 
 let clienteGemini = null;
@@ -67,7 +69,7 @@ const DESCRICAO_CAMPOS_POR_ESPORTE = {
   // Nomes de campo reaproveitados do futebol por compatibilidade de código,
   // mas aqui representam PONTOS marcados/sofridos por jogo -- não xG.
   basquete: 'pontos marcados e sofridos por jogo (média da temporada atual) -- NÃO é xG, isso é terminologia de futebol',
-  beisebol: 'ERA (earned run average) e K/9 (strikeouts por 9 innings) do titular provável',
+  beisebol: 'corridas marcadas e sofridas por jogo (média da temporada atual) -- NÃO é ERA nem K/9, é corridas de fato',
 };
 
 async function investigarStats(esporte, timeA, timeB, tentativa = 1) {
