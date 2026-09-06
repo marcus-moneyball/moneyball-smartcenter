@@ -1,5 +1,7 @@
 'use strict';
 
+const { buscarComCache } = require('../cacheOdds');
+
 /**
  * Conector da The Odds API (the-odds-api.com). Busca odds por esporte/liga.
  *
@@ -17,6 +19,15 @@ const SPORT_KEYS = {
   beisebol: ['baseball_mlb'],
 };
 
+async function buscarOddsDoSportKey(sportKey, apiKey) {
+  const url = `${BASE_URL}/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us,eu&markets=h2h,totals&oddsFormat=decimal`;
+  const resposta = await fetch(url);
+  if (!resposta.ok) {
+    throw new Error(`${sportKey} respondeu ${resposta.status}`);
+  }
+  return resposta.json();
+}
+
 /**
  * @param {string} esporte - 'futebol' | 'basquete' | 'beisebol'
  * @returns {Promise<Object[]>} eventos com odds de TODAS as ligas mapeadas pro esporte
@@ -33,14 +44,10 @@ async function buscarOddsPorEsporte(esporte) {
 
   const todosEventos = [];
   for (const sportKey of sportKeys) {
-    const url = `${BASE_URL}/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us,eu&markets=h2h,totals&oddsFormat=decimal`;
     try {
-      const resposta = await fetch(url);
-      if (!resposta.ok) {
-        console.warn(`[ODDS API] ${sportKey} respondeu ${resposta.status} -- pulando essa liga.`);
-        continue;
-      }
-      const eventos = await resposta.json();
+      // Cache por sportKey (não por esporte) -- futebol e basquete têm mais
+      // de uma liga, e cada uma tem seu próprio ritmo de atualização.
+      const eventos = await buscarComCache(`odds:${sportKey}`, () => buscarOddsDoSportKey(sportKey, apiKey));
       todosEventos.push(...eventos);
     } catch (erro) {
       console.warn(`[ODDS API] Falha ao buscar ${sportKey}: ${erro.message}`);
