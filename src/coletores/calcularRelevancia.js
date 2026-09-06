@@ -17,6 +17,7 @@
 
 const CONFIG_PLACAR_POR_LIGA = {
   soccer_epl: { desvioPadraoPlacar: 1.3, mediaTotal: 2.6, desvioTotal: 0.75 },
+  soccer_brazil_campeonato: { desvioPadraoPlacar: 1.3, mediaTotal: 2.6, desvioTotal: 0.75 },
   basketball_nba: { desvioPadraoPlacar: 12, mediaTotal: 225, desvioTotal: 15 },
   basketball_wnba: { desvioPadraoPlacar: 9, mediaTotal: 163, desvioTotal: 11 },
   // Valores aproximados de referência pública (não calibrados com dados
