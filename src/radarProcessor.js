@@ -2,7 +2,7 @@
 
 const { calcularNoMoneyballPro } = require('./proClient');
 const { investigarContexto } = require('./contextInvestigator');
-const { escreverJustificativa } = require('./groqJustificativa');
+const { escreverAnalisePartida } = require('./groqJustificativa');
 const { buscarPolymarket } = require('./coletores/polymarket');
 const { buscarTips } = require('./coletores/tips');
 
@@ -70,14 +70,12 @@ async function processarPartidaRadar(payload) {
     // --- 4. Montar o pódio -----------------------------------------------
     const podioBruto = montarPodio(resultadosCalculo, mercados, evento);
 
-    // --- 5. Justificativa (Groq) ------------------------------------------
-    const contextoParaTexto = { evento, fatoresIncerteza: investigacao.fatoresIncerteza };
+    // --- 5. Análise (Groq) -- uma chamada só pra partida inteira ------------
+    const analise = await escreverAnalisePartida(evento, podioBruto, investigacao.fatoresIncerteza);
     const podio = {};
     for (const chave of ['ouro', 'prata', 'bronze']) {
       const posicao = podioBruto[chave];
-      podio[chave] = posicao
-        ? { ...posicao, justificativa_curta: await escreverJustificativa(posicao, contextoParaTexto) }
-        : null;
+      podio[chave] = posicao ? { ...posicao, justificativa_curta: analise[chave] } : null;
     }
 
     const alertas = investigacao.fatoresIncerteza
@@ -92,6 +90,7 @@ async function processarPartidaRadar(payload) {
       esporte: evento.esporte,
       podio,
       alertas,
+      analise_completa: analise.analiseCompleta,
     };
   } catch (erro) {
     return {
