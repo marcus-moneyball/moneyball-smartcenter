@@ -43,17 +43,22 @@ function formatarPosicao(chave, emoji, label, posicao) {
 
   return `
     <div style="padding:14px 18px;margin:10px 0;border-radius:8px;background:${fundoMedalha};border-left:4px solid ${corMedalha};">
-      <div style="font-size:15px;color:${corMedalha};font-weight:700;margin-bottom:6px;">
+      <div style="font-size:15px;color:${corMedalha};font-weight:700;">
         ${emoji} ${label}: ${posicao.mercado} — ${posicao.selecao} @ ${posicao.odd}${prob}
-      </div>
-      <div style="font-size:14px;color:#374151;line-height:1.5;">
-        ${posicao.justificativa_curta ?? ''}
       </div>
     </div>`;
 }
 
+function formatarAnaliseCompleta(analiseCompleta) {
+  if (!analiseCompleta) return '';
+  return `
+    <div style="margin:16px 0;padding:16px 20px;background:#F9FAFB;border-radius:8px;font-size:14px;line-height:1.7;color:#374151;">
+      ${analiseCompleta}
+    </div>`;
+}
+
 function formatarJogo(resultado) {
-  const { confronto, liga, esporte, podio, alertas } = resultado;
+  const { confronto, liga, esporte, podio, alertas, analise_completa } = resultado;
 
   const cabecalhoJogo = `
     <h3 style="margin:24px 0 8px 0;font-size:18px;">
@@ -67,11 +72,13 @@ function formatarJogo(resultado) {
     formatarPosicao('bronze', '🥉', 'Bronze', podio?.bronze),
   ].join('\n');
 
+  const analiseHtml = formatarAnaliseCompleta(analise_completa);
+
   const alertasHtml = alertas?.length
     ? `<div style="margin-top:8px;font-size:13px;color:#B45309;">⚠️ ${alertas.join('; ')}</div>`
     : '';
 
-  return `${cabecalhoJogo}\n${posicoes}\n${alertasHtml}`;
+  return `${cabecalhoJogo}\n${posicoes}\n${analiseHtml}\n${alertasHtml}`;
 }
 
 /**
