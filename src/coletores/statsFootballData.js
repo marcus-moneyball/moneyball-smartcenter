@@ -10,6 +10,7 @@
 
 const SPORT_KEY_PARA_COMPETICAO = {
   soccer_epl: 'PL',
+  soccer_brazil_campeonato: 'BSA',
   // TODO: adicionar outras ligas aqui conforme oddsApi.js crescer
 };
 
