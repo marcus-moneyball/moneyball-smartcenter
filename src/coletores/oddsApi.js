@@ -12,7 +12,7 @@
 const BASE_URL = 'https://api.the-odds-api.com/v4';
 
 const SPORT_KEYS = {
-  futebol: ['soccer_epl'], // ajuste/expanda por liga conforme a cobertura que você quer
+  futebol: ['soccer_epl', 'soccer_brazil_campeonato'],
   basquete: ['basketball_nba', 'basketball_wnba'], // cobre as duas -- NBA às vezes está em offseason
   beisebol: ['baseball_mlb'],
 };
