@@ -98,4 +98,55 @@ async function buscarStatsBeisebol(timeA, timeB) {
   };
 }
 
-module.exports = { buscarStatsBeisebol };
+module.exports = { buscarStatsBeisebol, buscarStatsArremessador };
+
+let cacheJogadores = null;
+
+async function buscarJogadores() {
+  if (cacheJogadores) return cacheJogadores;
+
+  const temporada = new Date().getFullYear();
+  const resposta = await fetch(`https://statsapi.mlb.com/api/v1/sports/1/players?season=${temporada}`);
+  if (!resposta.ok) throw new Error(`statsapi.mlb.com respondeu ${resposta.status} ao listar jogadores`);
+  const dados = await resposta.json();
+
+  cacheJogadores = dados.people || [];
+  return cacheJogadores;
+}
+
+function resolverIdJogador(nomeJogador, jogadores) {
+  const alvo = normalizarNome(nomeJogador);
+  const encontrado = jogadores.find((j) => normalizarNome(j.fullName) === alvo);
+  return encontrado?.id || null;
+}
+
+/**
+ * @param {string} nomeJogador - nome completo, ex: "Jeffrey Springs"
+ * @returns {Promise<{ strikeouts_por_jogo: number }|null>}
+ */
+async function buscarStatsArremessador(nomeJogador) {
+  const jogadores = await buscarJogadores();
+  const id = resolverIdJogador(nomeJogador, jogadores);
+
+  if (!id) {
+    console.warn(`[MLB STATS API] Não encontrei o jogador "${nomeJogador}".`);
+    return null;
+  }
+
+  const temporada = new Date().getFullYear();
+  const resposta = await fetch(
+    `https://statsapi.mlb.com/api/v1/people/${id}/stats?stats=season&group=pitching&season=${temporada}`
+  );
+  if (!resposta.ok) throw new Error(`statsapi.mlb.com respondeu ${resposta.status} ao buscar stats de ${nomeJogador}`);
+  const dados = await resposta.json();
+
+  const stat = dados.stats?.[0]?.splits?.[0]?.stat;
+  if (!stat?.strikeOuts || !stat?.gamesStarted) return null;
+
+  const MINIMO_JOGOS_CONFIAVEL = 3; // titulares jogam bem menos vezes que times inteiros -- limiar menor
+  if (stat.gamesStarted < MINIMO_JOGOS_CONFIAVEL) return null;
+
+  return {
+    strikeouts_por_jogo: Number((stat.strikeOuts / stat.gamesStarted).toFixed(2)),
+  };
+}
