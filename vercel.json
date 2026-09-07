@@ -1,26 +1,7 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/relatorio-futebol",
-      "schedule": "0 10 * * *"
-    },
-    {
-      "path": "/api/cron/relatorio-basquete",
-      "schedule": "0 10 * * *"
-    },
-    {
-      "path": "/api/cron/relatorio-beisebol",
-      "schedule": "0 10 * * *"
-    }
-  ],
+  "crons": [],
   "functions": {
-    "api/cron/relatorio-futebol.js": {
-      "maxDuration": 60
-    },
-    "api/cron/relatorio-basquete.js": {
-      "maxDuration": 60
-    },
-    "api/cron/relatorio-beisebol.js": {
+    "api/radar/partida.js": {
       "maxDuration": 60
     }
   }
