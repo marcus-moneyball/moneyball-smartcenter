@@ -17,11 +17,36 @@ const SPORT_KEY_PARA_ESPORTE = {
 };
 
 /**
+ * Extrai a probabilidade certa e o texto de exibição da seleção, de
+ * acordo com o tipo de mercado -- cada tipo que calcular_mercado() do Pro
+ * devolve tem um formato de resultado diferente.
+ */
+function extrairProbabilidadeESelecao(resultado, original, confronto) {
+  switch (original.tipo) {
+    case 'moneyline_3vias':
+    case 'moneyline_2vias': {
+      const porLado = { casa: confronto.time_a, empate: 'Empate', fora: confronto.time_b };
+      const prob = { casa: resultado.probabilidade_casa, empate: resultado.probabilidade_empate, fora: resultado.probabilidade_fora }[
+        original.lado_odd
+      ];
+      return { probabilidade: prob, selecaoTexto: porLado[original.lado_odd] };
+    }
+    case 'handicap_asiatico': {
+      return { probabilidade: resultado.probabilidade_cobre, selecaoTexto: `Handicap ${original.linha > 0 ? '+' : ''}${original.linha}` };
+    }
+    default: {
+      const under = original.lado_odd === 'under';
+      return { probabilidade: under ? resultado.probabilidade_under : resultado.probabilidade_over, selecaoTexto: `${under ? 'Under' : 'Over'} ${original.linha}` };
+    }
+  }
+}
+
+/**
  * Monta os destaques (mercados com EV positivo) a partir dos resultados do
  * Pro, cruzando de volta com os objetos de mercado originais (que carregam
  * o nome de exibição e a odd) pelo id.
  */
-function montarDestaques(resultadosCalculo, mercadosMontados) {
+function montarDestaques(resultadosCalculo, mercadosMontados, confronto) {
   const mercadoPorId = Object.fromEntries(mercadosMontados.map((m) => [m.id, m]));
 
   return resultadosCalculo
@@ -29,10 +54,10 @@ function montarDestaques(resultadosCalculo, mercadosMontados) {
     .map((r) => {
       const original = mercadoPorId[r.id];
       if (!original) return null;
-      const prob = original.lado_odd === 'under' ? r.probabilidade_under : r.probabilidade_over;
+      const { probabilidade: prob, selecaoTexto } = extrairProbabilidadeESelecao(r, original, confronto);
       return {
         mercado: original.id.split('-').slice(1).join(' ').replace(/_/g, ' '),
-        selecao: `${original.lado_odd === 'under' ? 'Under' : 'Over'} ${original.linha}`,
+        selecao: selecaoTexto,
         odd: original.odd_real_decimal,
         probabilidade_estimada: prob,
         ev: r.ev,
@@ -94,7 +119,7 @@ module.exports = async function handler(req, res) {
         mercados: mercadosMontados,
         fatoresIncerteza: fatoresContexto,
       });
-      destaques = montarDestaques(resultadosCalculo, mercadosMontados);
+      destaques = montarDestaques(resultadosCalculo, mercadosMontados, confronto);
     }
 
     // --- Escrever (Groq) -----------------------------------------------------------
