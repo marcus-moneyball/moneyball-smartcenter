@@ -24,6 +24,36 @@ const SPORT_KEY_PARA_ESPORTE = {
   baseball_mlb: 'beisebol',
 };
 
+function normalizarNome(nome) {
+  return String(nome || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .trim();
+}
+
+function extrairNomeDaSelecao(selecao) {
+  // "Manchester United -1.5" -> "Manchester United" | "Houston Astros" -> "Houston Astros"
+  return selecao.replace(/[-+]?\d+(\.\d+)?\s*$/, '').trim();
+}
+
+/**
+ * Identifica se uma seleção se refere ao time A, time B, ou empate.
+ * @returns {'casa'|'fora'|'empate'|null}
+ */
+function identificarLado(selecao, confronto) {
+  const alvo = normalizarNome(extrairNomeDaSelecao(selecao));
+  if (/empate|draw/.test(alvo)) return 'empate';
+
+  const nomeA = normalizarNome(confronto.time_a);
+  const nomeB = normalizarNome(confronto.time_b);
+
+  if (alvo && (alvo === nomeA || nomeA.includes(alvo) || alvo.includes(nomeA))) return 'casa';
+  if (alvo && (alvo === nomeB || nomeB.includes(alvo) || alvo.includes(nomeB))) return 'fora';
+  return null;
+}
+
 function extrairLinhaOdd(selecao, odd) {
   // "Over 2.5" -> { lado: 'over', linha: 2.5 } | "Manchester United -1.5" -> linha do handicap
   const match = selecao.match(/(-?\d+(\.\d+)?)/);
@@ -75,20 +105,70 @@ async function montarMercado(item, confronto) {
     };
   }
 
-  // --- Moneyline: pendência conhecida -- calcular_mercado() do Pro é
-  // estruturado em torno de linha + over/under, não achei fórmula própria
-  // pra vitória/derrota simples ainda. Não vou inventar sem confirmar.
-  if (/moneyline/.test(nomeMercado)) {
-    console.warn('[MONTAR MERCADO] Moneyline ainda sem fórmula confirmada no Pro -- pulando.');
-    return null;
+  // --- Moneyline (3 vias no futebol, 2 vias em basquete/beisebol) -----------
+  if (/moneyline|vencedor/.test(nomeMercado)) {
+    const lado = identificarLado(item.selecao, confronto);
+    if (!lado) {
+      console.warn(`[MONTAR MERCADO] Não identifiquei o time da seleção "${item.selecao}" -- pulando.`);
+      return null;
+    }
+
+    let stats = null;
+    if (esporte === 'futebol') stats = await buscarStatsFutebol(confronto.time_a, confronto.time_b, confronto.sport_key);
+    else if (esporte === 'basquete') stats = await buscarStatsBasquete(confronto.time_a, confronto.time_b);
+    else if (esporte === 'beisebol') stats = await buscarStatsBeisebol(confronto.time_a, confronto.time_b);
+
+    const s = stats?.[esporte];
+    if (!s) return null;
+
+    return {
+      id: idBase,
+      tipo: esporte === 'futebol' ? 'moneyline_3vias' : 'moneyline_2vias',
+      odd_real_decimal: item.odd,
+      lado_odd: lado, // 'casa' | 'empate' | 'fora'
+      media_marcada_time_a: s.home_xg_ataque,
+      media_sofrida_time_a: s.home_xga_defesa,
+      media_marcada_time_b: s.away_xg_ataque,
+      media_sofrida_time_b: s.away_xga_defesa,
+      desvio_padrao: esporte === 'basquete' ? 12 : undefined,
+    };
   }
 
-  // --- Handicap (spread) de time ---------------------------------------------
+  // --- Handicap Asiático (spread) --------------------------------------------
   if (/handicap/.test(nomeMercado)) {
-    // TODO: handicap ainda não tem fórmula própria no Pro além do total_jogo
-    // genérico -- por ora tratado como pendência, não calcula.
-    console.warn(`[MONTAR MERCADO] Handicap ainda não implementado -- pulando "${item.mercado}".`);
-    return null;
+    const lado = identificarLado(item.selecao, confronto);
+    if (!lado || lado === 'empate') {
+      console.warn(`[MONTAR MERCADO] Não identifiquei o time da seleção "${item.selecao}" -- pulando.`);
+      return null;
+    }
+
+    const match = item.selecao.match(/(-?\d+(\.\d+)?)\s*$/);
+    if (!match) return null;
+    const linhaOriginal = Number(match[1]);
+
+    let stats = null;
+    if (esporte === 'futebol') stats = await buscarStatsFutebol(confronto.time_a, confronto.time_b, confronto.sport_key);
+    else if (esporte === 'basquete') stats = await buscarStatsBasquete(confronto.time_a, confronto.time_b);
+    else if (esporte === 'beisebol') stats = await buscarStatsBeisebol(confronto.time_a, confronto.time_b);
+
+    const s = stats?.[esporte];
+    if (!s) return null;
+
+    // calcular_probabilidade_handicap_asiatico() do Pro é sempre calculada
+    // da perspectiva do "time A" que a gente manda -- se a linha for do
+    // time B, invertemos os dois lados aqui (times e sinal da linha) antes
+    // de montar o payload, pra manter a matemática correta.
+    const ehTimeB = lado === 'fora';
+    return {
+      id: idBase,
+      tipo: 'handicap_asiatico',
+      odd_real_decimal: item.odd,
+      linha: ehTimeB ? -linhaOriginal : linhaOriginal,
+      media_marcada_time_a: ehTimeB ? s.away_xg_ataque : s.home_xg_ataque,
+      media_sofrida_time_a: ehTimeB ? s.away_xga_defesa : s.home_xga_defesa,
+      media_marcada_time_b: ehTimeB ? s.home_xg_ataque : s.away_xg_ataque,
+      media_sofrida_time_b: ehTimeB ? s.home_xga_defesa : s.away_xga_defesa,
+    };
   }
 
   // --- Prop de jogador (ex: Strikeouts) ---------------------------------------
