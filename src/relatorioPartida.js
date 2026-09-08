@@ -10,25 +10,23 @@ function formatarTabelaOdds(mercadosVisiveis) {
   const linhas = mercadosVisiveis
     .map(
       (m) => `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${m.mercado}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">${m.selecao}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${m.odd}</td>
-      </tr>`
+      <div style="display:flex;padding:8px 12px;border-bottom:1px solid #E5E7EB;">
+        <div style="flex:1;">${m.mercado}</div>
+        <div style="flex:1;">${m.selecao}</div>
+        <div style="width:80px;text-align:right;">${m.odd}</div>
+      </div>`
     )
     .join('\n');
 
   return `
-    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">
-      <thead>
-        <tr style="background:#F9FAFB;">
-          <th style="padding:8px 12px;text-align:left;">Mercado</th>
-          <th style="padding:8px 12px;text-align:left;">Seleção</th>
-          <th style="padding:8px 12px;text-align:right;">Odd</th>
-        </tr>
-      </thead>
-      <tbody>${linhas}</tbody>
-    </table>`;
+    <div style="margin:16px 0;font-size:14px;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+      <div style="display:flex;padding:8px 12px;background:#F9FAFB;font-weight:600;">
+        <div style="flex:1;">Mercado</div>
+        <div style="flex:1;">Seleção</div>
+        <div style="width:80px;text-align:right;">Odd</div>
+      </div>
+      ${linhas}
+    </div>`;
 }
 
 function formatarDestaques(destaques) {
