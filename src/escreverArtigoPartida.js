@@ -20,7 +20,7 @@ const FALLBACK = 'Análise indisponível no momento -- consulte a tabela de odds
  * @param {Object[]} fatoresContexto - fatores estruturados (ver interpretarContexto.js)
  * @returns {Promise<string>} texto da análise em prosa (HTML simples: parágrafos)
  */
-async function escreverArtigoPartida(confronto, mercadosVisiveis, destaques, fatoresContexto = []) {
+async function escreverArtigoPartida(confronto, mercadosVisiveis, destaques, fatoresContexto = [], resumoNarrativoNexus = '') {
   const groq = getCliente();
   if (!groq) return FALLBACK;
 
@@ -38,14 +38,21 @@ direto, fundamentado nos números fornecidos, sem floreio.
 REGRAS INEGOCIÁVEIS:
 - NUNCA invente números, estatísticas ou fatos que não foram fornecidos no JSON de entrada.
 - Cite EV e probabilidade explicitamente para cada destaque, com os valores exatos fornecidos.
-- Se "fatores_contexto" foi fornecido, incorpore na análise. Se vazio, não invente narrativa de contexto.
+- Se "resumo_narrativo_investigacao" foi fornecido, use-o como base para o parágrafo de contexto -- ele já
+  foi escrito por uma investigação qualitativa rigorosa, não precisa reescrever do zero, só adaptar o tom.
+- Se "fatores_contexto" foi fornecido, incorpore na análise. Se ambos vazios, não invente narrativa de contexto.
 - Escreva 3-5 parágrafos em HTML simples (<p>...</p>), sem markdown, sem título (o título já existe fora daqui).
-- Comece com um parágrafo de contexto do confronto (usando só o que foi dado: liga, data/hora, mercados disponíveis).
 - Se "destaques" estiver vazio, diga isso claramente -- não force uma recomendação onde o cálculo não achou vantagem real.`,
         },
         {
           role: 'user',
-          content: JSON.stringify({ confronto, mercados_visiveis: mercadosVisiveis, destaques, fatores_contexto: fatoresContexto }),
+          content: JSON.stringify({
+            confronto,
+            mercados_visiveis: mercadosVisiveis,
+            destaques,
+            fatores_contexto: fatoresContexto,
+            resumo_narrativo_investigacao: resumoNarrativoNexus,
+          }),
         },
       ],
     });
