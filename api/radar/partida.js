@@ -1,7 +1,7 @@
 'use strict';
 
 const { montarMercado } = require('../../src/montarMercadosRadar');
-const { estruturarContexto } = require('../../src/interpretarContexto');
+const { interpretarNexus } = require('../../src/interpretarNexus');
 const { escreverArtigoPartida } = require('../../src/escreverArtigoPartida');
 const { montarArtigoPartida } = require('../../src/relatorioPartida');
 const { publicarRelatorioNoGhost } = require('../../src/ghostService');
@@ -84,7 +84,8 @@ module.exports = async function handler(req, res) {
       return res.status(401).json({ sucesso: false, erro: 'Não autorizado.' });
     }
 
-    const { confronto, mercados_visiveis, contexto_investigado, publicar } = req.body || {};
+    const { confronto, radar, nexus, publicar } = req.body || {};
+    const mercados_visiveis = radar?.mercados_visiveis_no_print;
     if (!confronto?.match || !confronto?.sport_key || !Array.isArray(mercados_visiveis)) {
       return res.status(400).json({ sucesso: false, erro: 'Corpo inválido -- ver contrato em smartcenter-radar-v4-plano.md.' });
     }
@@ -108,8 +109,12 @@ module.exports = async function handler(req, res) {
       else mercadosPulados.push(item.mercado);
     }
 
-    // --- Estruturar contexto (Gemini, sem busca) --------------------------------
-    const fatoresContexto = await estruturarContexto(contexto_investigado);
+    // --- Interpretar o Nexus (transformação pura, sem chamada de IA) -----------
+    const { coletivo, confiavel } = interpretarNexus(nexus);
+    if (!confiavel) {
+      console.warn(`[RADAR PARTIDA] Nexus sinalizou dados insuficientes (gate.dados_minimos=false) para ${confronto.match} -- seguindo mesmo assim, com cautela no texto.`);
+    }
+    const fatoresContexto = coletivo.fatoresIncerteza;
 
     // --- Calcular (Pro) ----------------------------------------------------------
     let destaques = [];
@@ -123,7 +128,7 @@ module.exports = async function handler(req, res) {
     }
 
     // --- Escrever (Groq) -----------------------------------------------------------
-    const analiseHtml = await escreverArtigoPartida(confronto, mercados_visiveis, destaques, fatoresContexto);
+    const analiseHtml = await escreverArtigoPartida(confronto, mercados_visiveis, destaques, fatoresContexto, coletivo.resumoNarrativo);
 
     // --- Montar e publicar ---------------------------------------------------------
     const artigo = montarArtigoPartida(confronto, mercados_visiveis, destaques, analiseHtml);
