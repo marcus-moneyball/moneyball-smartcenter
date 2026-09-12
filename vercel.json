@@ -3,6 +3,18 @@
   "functions": {
     "api/radar/partida.js": {
       "maxDuration": 60
+    },
+    "api/app/triagem.js": {
+      "maxDuration": 60
+    },
+    "api/app/investigar.js": {
+      "maxDuration": 60
+    },
+    "api/app/publicar.js": {
+      "maxDuration": 60
+    },
+    "api/app/index.js": {
+      "maxDuration": 10
     }
   }
 }
