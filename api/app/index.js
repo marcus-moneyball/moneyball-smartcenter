@@ -1,7 +1,5 @@
 'use strict';
 
-const { exigirAuthBasica } = require('../../src/basicAuth');
-
 const HTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -37,7 +35,29 @@ const HTML = `<!DOCTYPE html>
   <div id="jogos"></div>
 
   <script>
-    const estado = { jogos: [] }; // { confronto, mercados_visiveis_no_print, contexto_ocr, esporte, nexus }
+    const estado = { jogos: [] };
+    let SENHA_APP = sessionStorage.getItem('senhaApp') || '';
+
+    function garantirSenha() {
+      if (!SENHA_APP) {
+        SENHA_APP = prompt('Senha do app:') || '';
+        sessionStorage.setItem('senhaApp', SENHA_APP);
+      }
+      return SENHA_APP;
+    }
+
+    async function chamarApi(caminho, corpo) {
+      const resposta = await fetch(caminho, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-App-Senha': garantirSenha() },
+        body: JSON.stringify(corpo),
+      });
+      if (resposta.status === 401) {
+        sessionStorage.removeItem('senhaApp'); // senha errada -- limpa pra pedir de novo na próxima
+        throw new Error('Senha incorreta.');
+      }
+      return resposta.json();
+    }
 
     function paraBase64(file) {
       return new Promise((resolve, reject) => {
@@ -63,8 +83,7 @@ const HTML = `<!DOCTYPE html>
       statusEl.textContent = 'Rodando Radar...'; statusEl.className = 'status';
       try {
         const imagens = await Promise.all([...arquivos].map(async (f) => ({ data: await paraBase64(f), mimeType: f.type })));
-        const resposta = await fetch('/api/app/triagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imagens }) });
-        const dados = await resposta.json();
+        const dados = await chamarApi('/api/app/triagem', { imagens });
         if (!dados.sucesso) throw new Error(dados.erro);
 
         estado.jogos = [];
@@ -117,11 +136,7 @@ const HTML = `<!DOCTYPE html>
       statusEl.textContent = 'Investigando...'; statusEl.className = 'status';
       try {
         const imagemStats = { data: await paraBase64(arquivo), mimeType: arquivo.type };
-        const resposta = await fetch('/api/app/investigar', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ esporte: jogo.esporte, imagemStats, confronto: jogo.confronto, mercados_visiveis_no_print: jogo.mercados_visiveis_no_print, contexto_ocr: jogo.contexto_ocr }),
-        });
-        const dados = await resposta.json();
+        const dados = await chamarApi('/api/app/investigar', { esporte: jogo.esporte, imagemStats, confronto: jogo.confronto, mercados_visiveis_no_print: jogo.mercados_visiveis_no_print, contexto_ocr: jogo.contexto_ocr });
         if (!dados.sucesso) throw new Error(dados.erro);
 
         jogo.nexus = dados.nexus;
@@ -138,7 +153,7 @@ const HTML = `<!DOCTYPE html>
     window.prepararPublicacao = function (i) {
       const jogo = estado.jogos[i];
       const payload = {
-        confronto: { ...jogo.confronto, sport_key: '' }, // preencha o sport_key certo antes de publicar
+        confronto: { ...jogo.confronto, sport_key: '' },
         radar: { mercados_visiveis_no_print: jogo.mercados_visiveis_no_print, contexto_ocr: jogo.contexto_ocr },
         nexus: jogo.nexus,
         publicar: 'draft',
@@ -159,8 +174,7 @@ const HTML = `<!DOCTYPE html>
       try {
         const payload = JSON.parse(document.getElementById('json-' + i).value);
         payload.publicar = document.getElementById('status-publicar-' + i).value;
-        const resposta = await fetch('/api/app/publicar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const dados = await resposta.json();
+        const dados = await chamarApi('/api/app/publicar', payload);
         if (!dados.sucesso) throw new Error(dados.erro);
         statusEl.innerHTML = 'Publicado: <a href="' + dados.publicacao.url + '" target="_blank">' + dados.publicacao.url + '</a>';
         statusEl.className = 'status ok';
@@ -173,7 +187,9 @@ const HTML = `<!DOCTYPE html>
 </html>`;
 
 module.exports = async function handler(req, res) {
-  if (!exigirAuthBasica(req, res)) return;
+  // A página em si é pública -- só um formulário sem conteúdo sensível.
+  // A senha é exigida em cada ação real (triagem/investigar/publicar),
+  // verificada no servidor via appAuth.js.
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   return res.status(200).send(HTML);
