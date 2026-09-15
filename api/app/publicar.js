@@ -1,17 +1,18 @@
 'use strict';
 
-const { exigirAuthBasica } = require('../../src/basicAuth');
+const { exigirSenhaApp } = require('../../src/appAuth');
 
 /**
  * POST /api/app/publicar
+ * Header: X-App-Senha
  * Body: { confronto, radar, nexus, publicar }
  *
  * Existe só pra não expor o CRON_SECRET no navegador -- o app chama esse
- * endpoint (protegido por Basic Auth), que por sua vez chama o
+ * endpoint (protegido por senha própria), que por sua vez chama o
  * /api/radar/partida real já com a senha certa, do lado do servidor.
  */
 module.exports = async function handler(req, res) {
-  if (!exigirAuthBasica(req, res)) return;
+  if (!exigirSenhaApp(req, res)) return;
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   try {
