@@ -2,17 +2,18 @@
 
 const fs = require('fs');
 const path = require('path');
-const { exigirAuthBasica } = require('../../src/basicAuth');
+const { exigirSenhaApp } = require('../../src/appAuth');
 const { chamarGeminiComImagem } = require('../../src/chamarGeminiComImagem');
 
 const PROMPT_RADAR = fs.readFileSync(path.join(__dirname, '../../src/prompts/radar-v3.md'), 'utf-8');
 
 /**
  * POST /api/app/triagem
+ * Header: X-App-Senha
  * Body: { imagens: [{ data: base64SemPrefixo, mimeType: 'image/png' }] }
  */
 module.exports = async function handler(req, res) {
-  if (!exigirAuthBasica(req, res)) return;
+  if (!exigirSenhaApp(req, res)) return;
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   try {
