@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { exigirAuthBasica } = require('../../src/basicAuth');
+const { exigirSenhaApp } = require('../../src/appAuth');
 const { chamarGeminiComImagem } = require('../../src/chamarGeminiComImagem');
 
 const PROMPTS_NEXUS = {
@@ -13,16 +13,17 @@ const PROMPTS_NEXUS = {
 
 /**
  * POST /api/app/investigar
+ * Header: X-App-Senha
  * Body: {
  *   esporte: 'futebol' | 'mlb' | 'nba_wnba',
  *   imagemStats: { data: base64SemPrefixo, mimeType: 'image/png' },
  *   confronto: { match, league },
- *   mercados_visiveis_no_print: [...],  -- o "cardápio" já lido pelo Radar
+ *   mercados_visiveis_no_print: [...],
  *   contexto_ocr: '...'
  * }
  */
 module.exports = async function handler(req, res) {
-  if (!exigirAuthBasica(req, res)) return;
+  if (!exigirSenhaApp(req, res)) return;
   res.setHeader('Cache-Control', 'no-store, max-age=0');
 
   try {
